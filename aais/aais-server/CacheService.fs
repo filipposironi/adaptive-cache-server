@@ -9,6 +9,8 @@ open System.IO
 open System.Runtime.Serialization
 open System.Runtime.Serialization.Formatters.Binary
 
+type Message = Msg of string * int
+
 type ICacheService =
     abstract member store : byte list -> int
     abstract member search : int -> byte list
@@ -20,34 +22,43 @@ type CacheService() =
     let mutable volatileCache = new Map<int, byte list> ([])
     let mutable volatileCacheSize = 0
     let mutable volatileCacheMaxSize = 1024
-
-    member this.getVolatileCacheMaxSize =
-        volatileCacheMaxSize
-
-    member this.setVolatileCacheMaxSize(size: int) =
-        if size <= 0 then
-            invalidArg "size" "size should be a positive interger value"
-        volatileCacheMaxSize <- size
-        this.update
+    let inbox = new MailboxProcessor<Message>(fun (inbox: MailboxProcessor<Message>) ->
+        async {
+            while true do
+                let! message = inbox.Receive()
+                match message with
+                | Msg("size", size) ->
+                    if size <= 0 then
+                        invalidArg "size" "size should be a positive interger value"
+                    else
+                        volatileCacheMaxSize <- size
+                | Msg(_, _) -> ()
+        })
+    let update = async {
+        while true do
+            if volatileCacheSize > volatileCacheMaxSize then
+                let size = ref 0
+                for (k, v) in volatileCache |> Map.toSeq do
+                    if !size + v.Length > volatileCacheMaxSize then
+                        let file = new FileStream(k.ToString() + ".dat", FileMode.Create)
+                        let formatter = new BinaryFormatter()
+                        formatter.Serialize(file, v)
+                        file.Close()
+                        volatileCache <- volatileCache |> Map.add k []
+                        volatileCacheSize <- volatileCacheSize - v.Length
+                    else
+                        size := !size + v.Length
+            Async.Sleep(1000) |> ignore
+    }
+    
+    do inbox.Start()
+    do Async.Start(update)
 
     member this.store = (this :> ICacheService).store
     member this.search = (this :> ICacheService).search
-    member this.remove = (this :> ICacheService).remove
+    member this.remove = (this :> ICacheService).remove    
+    member this.getMailbox = inbox
 
-    member this.update =
-        if volatileCacheSize > volatileCacheMaxSize then
-            let mutable size = 0
-            for (k, v) in volatileCache |> Map.toSeq do
-                if size + v.Length > volatileCacheMaxSize then
-                    let file = new FileStream(k.ToString() + ".dat", FileMode.Create)
-                    let formatter = new BinaryFormatter()
-                    formatter.Serialize(file, v)
-                    file.Close()
-                    volatileCache <- volatileCache |> Map.add k []
-                    volatileCacheSize <- volatileCacheSize - v.Length
-                else
-                    size <- size + v.Length
-    
     interface ICacheService with
         member this.store(value: byte list) =
             let key = keys |> Map.findKey (fun k v -> v = true)

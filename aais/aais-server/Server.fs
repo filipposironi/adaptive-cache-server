@@ -14,9 +14,9 @@ open System.Threading
 
 open CacheService
 
+let cache = new CacheService()
 let cacheServiceToken = new CancellationTokenSource()
 let cacheService = async {
-    let cache = new CacheService()
     while not cacheServiceToken.IsCancellationRequested do
         let listener = new TcpListener(IPAddress.Parse("127.0.0.1"), 1234)
         listener.Start()
@@ -47,6 +47,12 @@ let cacheService = async {
 }
 
 Async.Start(cacheService, cacheServiceToken.Token)
-
-printfn "Hit any key to continue..."
-do (Console.ReadKey()) |> ignore
+let outbox = cache.getMailbox
+while true do
+    Console.Write("> ")
+    let line = Console.ReadLine()
+    let command = line.Split([|' '|]).[0]
+    let parameter = Int32.Parse(line.Split([|' '|]).[1])
+    match command with
+    | "size" -> outbox.Post(Msg(command, parameter))
+    | _ -> failwith "command not found"
