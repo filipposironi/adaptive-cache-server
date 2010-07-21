@@ -12,62 +12,68 @@ open System.Runtime.Serialization.Formatters.Binary
 type Message = Msg of string * int
 
 type ICacheService =
-    abstract member store : byte list -> int
-    abstract member search : int -> byte list
-    abstract member remove : int -> unit
+    abstract member store: byte list -> int
+    abstract member search: int -> byte list
+    abstract member remove: int -> unit
 
 type CacheService() =
-    let cacheMaxSize = Convert.ToInt32(UInt16.MaxValue)
-    let mutable keys = [for i in 0 .. cacheMaxSize -> (i, true)] |> Map.ofList
-    let mutable volatileCache = new Map<int, byte list> ([])
-    let mutable volatileCacheSize = 0
-    let mutable volatileCacheMaxSize = 1024
-    let inbox = new MailboxProcessor<Message>(fun (inbox: MailboxProcessor<Message>) ->
-        async {
-            while true do
-                let! message = inbox.Receive()
-                match message with
-                | Msg("size", size) ->
-                    if size <= 0 then
-                        invalidArg "size" "size should be a positive interger value"
-                    else
-                        volatileCacheMaxSize <- size
-                | Msg(_, _) -> ()
-        })
-    let update = async {
+    let cacheMaxSize = Convert.ToInt32 UInt16.MaxValue
+    let enableLogMessages = ref false
+    let keys = ref(Map.ofList [for i in 0 .. cacheMaxSize -> (i, true)])
+    let volatileCache = ref(new Map<int, byte list>([]))
+    let volatileCacheSize = ref 0
+    let volatileCacheMaxSize = ref 1024
+    let inbox = new MailboxProcessor<Message>(fun (inbox: MailboxProcessor<Message>) -> async {
         while true do
-            if volatileCacheSize > volatileCacheMaxSize then
-                let size = ref 0
-                for (k, v) in volatileCache |> Map.toSeq do
-                    if !size + v.Length > volatileCacheMaxSize then
-                        let file = new FileStream(k.ToString() + ".dat", FileMode.Create)
-                        let formatter = new BinaryFormatter()
-                        formatter.Serialize(file, v)
-                        file.Close()
-                        volatileCache <- volatileCache |> Map.add k []
-                        volatileCacheSize <- volatileCacheSize - v.Length
-                    else
-                        size := !size + v.Length
-            Async.Sleep(1000) |> ignore
-    }
+            let! message = inbox.Receive()
+            match message with
+            | Msg("size", size) ->
+                if size <= 0 then
+                    // TODO: avoid failing with an error
+                    failwith "size less than or equal to zero"
+                else
+                    volatileCacheMaxSize := size
+            | Msg("log", enable) ->
+                if enable = 0 then
+                    enableLogMessages := false
+                else
+                    enableLogMessages := true
+            | Msg(_, _) -> ()
+    })
     
-    do inbox.Start()
-    do Async.Start(update)
+    do
+        // TODO: open log file
+        inbox.Start()
+       
+    member this.getMailbox = inbox
 
     member this.store = (this :> ICacheService).store
     member this.search = (this :> ICacheService).search
-    member this.remove = (this :> ICacheService).remove    
-    member this.getMailbox = inbox
+    member this.remove = (this :> ICacheService).remove
+    
+    member this.update =
+        if volatileCacheSize > volatileCacheMaxSize then
+            let size = ref 0
+            for (k, v) in Map.toSeq !volatileCache do
+                if !size + v.Length > !volatileCacheMaxSize then
+                    let file = new FileStream(k.ToString() + ".dat", FileMode.Create)
+                    let formatter = new BinaryFormatter()
+                    formatter.Serialize(file, v)
+                    file.Close()
+                    volatileCache := Map.add k [] !volatileCache
+                    volatileCacheSize := !volatileCacheSize - v.Length
+                else
+                    size := !size + v.Length
 
     interface ICacheService with
         member this.store(value: byte list) =
-            let key = keys |> Map.findKey (fun k v -> v = true)
-            keys <- keys |> Map.add key false
-            if volatileCacheSize + value.Length <= volatileCacheMaxSize then
-                volatileCache <- volatileCache |> Map.add key value
-                volatileCacheSize <- volatileCacheSize + value.Length
+            let key = Map.findKey (fun k v -> v = true) !keys
+            keys := Map.add key false !keys
+            if !volatileCacheSize + value.Length <= !volatileCacheMaxSize then
+                volatileCache := Map.add key value !volatileCache
+                volatileCacheSize := !volatileCacheSize + value.Length
             else
-                volatileCache <- volatileCache |> Map.add key []
+                volatileCache := Map.add key [] !volatileCache
                 let file = new FileStream(key.ToString() + ".dat", FileMode.Create)
                 let formatter = new BinaryFormatter()
                 formatter.Serialize(file, value)
@@ -76,25 +82,27 @@ type CacheService() =
         
         member this.search(key: int) =
             try
-                if (volatileCache |> Map.find key = []) then
+                if Map.find key !volatileCache = [] then
                     let file = new FileStream(key.ToString() + ".dat", FileMode.Open)
                     let formatter = new BinaryFormatter()
-                    let value = (formatter.Deserialize(file) :?> byte list)
+                    let value =(formatter.Deserialize(file) :?> byte list)
                     file.Close()
                     value
                 else
-                    Map.find key volatileCache
+                    Map.find key !volatileCache
             with
-                | :? KeyNotFoundException as e -> printfn "%s" (e.Message); []
+            | :? KeyNotFoundException as e ->
+                Console.WriteLine e.Message
+                []
 
         member this.remove(key: int) =
             try
-                let value = volatileCache |> Map.find key
+                let value = Map.find key !volatileCache
                 if value.Length = 0 then
                     File.Delete(key.ToString() + ".dat")
                 else
-                    volatileCacheSize <- volatileCacheSize - value.Length
+                    volatileCacheSize := !volatileCacheSize - value.Length
             with
-                | :? KeyNotFoundException as e -> printfn "%s" (e.Message)
-            volatileCache <- volatileCache |> Map.remove key
-            keys <- keys |> Map.add key true
+                | :? KeyNotFoundException as e -> Console.WriteLine e.Message
+            volatileCache := Map.remove key !volatileCache
+            keys := Map.add key true !keys
