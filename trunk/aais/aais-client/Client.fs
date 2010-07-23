@@ -35,5 +35,5 @@ outStream.Flush()
 message <- inStream.ReadLine()
 *)
 
-Console.WriteLine "Hit any key to continue..."
+Console.WriteLine "hit any key to continue..."
 Console.ReadKey() |> ignore
