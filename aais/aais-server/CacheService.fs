@@ -16,7 +16,7 @@ let private logName = "Application"
 let private initialCache = new Map<int, bool * byte list>([])
 let private initialCacheKeys = Map.ofList [for i in 0 .. (Convert.ToInt32 UInt16.MaxValue) -> (i, true)]
 let private initialVolatileCacheSize = 0
-let private initialVolatileCacheMaxSize = 1024
+let private initialVolatileCacheMaxSize = 10
 
 type private Message = Store of byte list * AsyncReplyChannel<int>
                       | Remove of int
@@ -42,6 +42,7 @@ type CacheService() =
                             use file = new FileStream(key.ToString() + ".dat", FileMode.Create)
                             let formatter = new BinaryFormatter()
                             formatter.Serialize(file, box value)
+                            file.Close()
                             outbox.Reply key
                             return! MessageHandler cache cacheKeys volatileCacheSize volatileCacheMaxSize
                     | Remove(key) ->
@@ -68,6 +69,7 @@ type CacheService() =
                                 use file = new FileStream(key.ToString() + ".dat", FileMode.Open)
                                 let formatter = new BinaryFormatter()
                                 let value = unbox<byte list> (formatter.Deserialize(file))
+                                file.Close()
                                 outbox.Reply value
                         with
                         | :? KeyNotFoundException as e ->

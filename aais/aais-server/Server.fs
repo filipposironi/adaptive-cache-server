@@ -7,10 +7,10 @@ open System
 open Application.Server.CacheService
 
 let cache = new CacheService()
-let key = cache.store [for i in 0 .. 9 -> byte i]
-let value = cache.search key
-printfn "%A" value
+let key1 = cache.store [for i in 0 .. 8 -> byte i]
+printfn "%A" (cache.search key1)
 
-cache.search 2 |> ignore
+let key2 = cache.store [for i in 0 .. 3 -> byte i]
+printfn "%A" (cache.search key2)
 
 Console.ReadKey() |> ignore
