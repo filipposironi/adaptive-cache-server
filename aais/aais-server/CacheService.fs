@@ -13,8 +13,8 @@ open Helpers
 let private logSource = "AdaptiveCacheService"
 let private logName = "Application"
 
-let private initialCache = new Map<int, bool * byte list>([])
-let private initialCacheKeys = Map.ofList [for i in 0..(Convert.ToInt32 UInt16.MaxValue) -> (i, true)]
+let private initialCache = new Map<int, bool * int * byte list>([])
+let private initialCacheKeys = Map.ofList [for i in 0 .. (Convert.ToInt32 UInt16.MaxValue) -> (i, true)]
 let private initialVolatileCacheSize = 0
 let private initialVolatileCacheMaxSize = 10
 
@@ -33,24 +33,24 @@ type CacheService() =
                         let key = Map.findKey (fun k v -> v = true) cacheKeys
                         let cacheKeys = Map.add key false cacheKeys
                         if volatileCacheSize + value.Length <= volatileCacheMaxSize then
-                            let cache = Map.add key (true, value) cache
+                            let cache = Map.add key (true, value.Length, value) cache
                             let volatileCacheSize = volatileCacheSize + value.Length
                             outbox.Reply key
                             return! MessageHandler cache cacheKeys volatileCacheSize volatileCacheMaxSize
                         else
-                            let cache = Map.add key (false, []) cache
+                            let cache = Map.add key (false, value.Length, []) cache
                             serializeCacheLine key (box value)
                             outbox.Reply key
                             return! MessageHandler cache cacheKeys volatileCacheSize volatileCacheMaxSize
                     | Remove(key) ->
                         if Map.containsKey key cache then
-                            let (isVolatile, value) = Map.find key cache
-                            if isVolatile then
-                                let volatileCacheSize = volatileCacheSize - value.Length
+                            match Map.find key cache with
+                            | (true, length, _) ->
+                                let volatileCacheSize = volatileCacheSize - length
                                 let cache = Map.remove key cache
                                 let cacheKeys = Map.add key true cacheKeys
                                 return! MessageHandler cache cacheKeys volatileCacheSize volatileCacheMaxSize
-                            else
+                            | (false, _, _) ->
                                 File.Delete(key.ToString() + ".dat")
                                 let cache = Map.remove key cache
                                 let cacheKeys = Map.add key true cacheKeys
@@ -59,12 +59,11 @@ type CacheService() =
                             return! MessageHandler cache cacheKeys volatileCacheSize volatileCacheMaxSize
                     | Search(key, outbox) ->
                         try
-                            let (isVolatile, value) = Map.find key cache
-                            if isVolatile then
+                            match Map.find key cache with
+                            | (true, _, value) ->
                                 outbox.Reply value
-                            else
-                                let value = unbox<byte list> (deserializeCacheLine key)
-                                outbox.Reply value
+                            | (false, _, _) ->
+                                outbox.Reply (unbox<byte list> (deserializeCacheLine key))
                         with
                         | :? KeyNotFoundException as e ->
                             if not (EventLog.SourceExists(logSource)) then
@@ -73,17 +72,37 @@ type CacheService() =
                             outbox.Reply []
                         return! MessageHandler cache cacheKeys volatileCacheSize volatileCacheMaxSize
                     | Size(newVolatileCacheMaxSize) ->
-                        let rec increase (lCache: (int * (bool * byte list)) list) mCache volatileCacheSize =
-                            if lCache.IsEmpty then
-                                (mCache, volatileCacheSize)
+                        let decrease (cache: Map<int, bool * int * byte list>) =
+                            let rec loop (lCache: (int * (bool * int * byte list)) list) mCache volatileCacheSize =
+                                match lCache with
+                                | [] -> (mCache, volatileCacheSize)
+                                | (key, (_, length, value)) :: lCacheTail ->
+                                    if volatileCacheSize + length > newVolatileCacheMaxSize then
+                                        serializeCacheLine key (box value)
+                                        loop lCacheTail (Map.add key (false, length, []) mCache) volatileCacheSize
+                                    else
+                                        loop lCacheTail (Map.add key (true, length, value) mCache) (volatileCacheSize + length)
+                            let cache = Map.partition (fun _ (isVolatile, _, _) -> isVolatile) cache
+                            loop (Map.toList (fst cache)) (snd cache) 0
+                        let increase (cache: Map<int, bool * int * byte list>) =
+                            let rec loop (lCache: (int * (bool * int * byte list)) list) mCache volatileCacheSize =
+                                match lCache with
+                                | [] -> (mCache, volatileCacheSize)
+                                | (key, (_, length, _)) :: lCacheTail ->
+                                    if volatileCacheSize + length < newVolatileCacheMaxSize then
+                                        let value = unbox<byte list> (deserializeCacheLine key)
+                                        File.Delete(key.ToString() + ".dat")
+                                        loop lCacheTail (Map.add key (true, length, value) mCache) (volatileCacheSize + length)
+                                    else
+                                        loop lCacheTail (Map.add key (false, length, []) mCache) volatileCacheSize
+                            let cache = Map.partition (fun _ (isVolatile, _, _) -> isVolatile) cache
+                            loop (Map.toList (snd cache)) (fst cache) volatileCacheSize
+                        let update =
+                            if newVolatileCacheMaxSize > volatileCacheMaxSize then
+                                increase
                             else
-                                let (key, (isVolatile, value)) = List.head lCache
-                                if isVolatile && volatileCacheSize + value.Length > newVolatileCacheMaxSize then
-                                    serializeCacheLine key (box value)
-                                    increase (List.tail lCache) (Map.add key (false, []) mCache) volatileCacheSize
-                                else
-                                    increase (List.tail lCache) (Map.add key (isVolatile, value) mCache) (volatileCacheSize + value.Length)
-                        let (cache, volatileCacheSize) = increase (Map.toList cache) (new Map<int, bool * byte list>([])) 0
+                                decrease
+                        let (cache, volatileCacheSize) = update cache
                         return! MessageHandler cache cacheKeys volatileCacheSize volatileCacheMaxSize
                     | Log(log) ->
                         // TODO
