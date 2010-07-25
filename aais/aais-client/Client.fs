@@ -1,6 +1,6 @@
 ﻿#light
 
-module Application.Client
+module Client
 
 open System
 
