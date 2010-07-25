@@ -1,20 +1,20 @@
 ﻿#light
 
-module Application.Server.CacheService
+module CacheService
 
 open System
 open System.Collections
 open System.Collections.Generic
 open System.Diagnostics
 open System.IO
-open System.Runtime.Serialization
-open System.Runtime.Serialization.Formatters.Binary
+
+open Helpers
 
 let private logSource = "AdaptiveCacheService"
 let private logName = "Application"
 
 let private initialCache = new Map<int, bool * byte list>([])
-let private initialCacheKeys = Map.ofList [for i in 0 .. (Convert.ToInt32 UInt16.MaxValue) -> (i, true)]
+let private initialCacheKeys = Map.ofList [for i in 0..(Convert.ToInt32 UInt16.MaxValue) -> (i, true)]
 let private initialVolatileCacheSize = 0
 let private initialVolatileCacheMaxSize = 10
 
@@ -39,10 +39,7 @@ type CacheService() =
                             return! MessageHandler cache cacheKeys volatileCacheSize volatileCacheMaxSize
                         else
                             let cache = Map.add key (false, []) cache
-                            use file = new FileStream(key.ToString() + ".dat", FileMode.Create)
-                            let formatter = new BinaryFormatter()
-                            formatter.Serialize(file, box value)
-                            file.Close()
+                            serializeCacheLine key (box value)
                             outbox.Reply key
                             return! MessageHandler cache cacheKeys volatileCacheSize volatileCacheMaxSize
                     | Remove(key) ->
@@ -66,10 +63,7 @@ type CacheService() =
                             if isVolatile then
                                 outbox.Reply value
                             else
-                                use file = new FileStream(key.ToString() + ".dat", FileMode.Open)
-                                let formatter = new BinaryFormatter()
-                                let value = unbox<byte list> (formatter.Deserialize(file))
-                                file.Close()
+                                let value = unbox<byte list> (deserializeCacheLine key)
                                 outbox.Reply value
                         with
                         | :? KeyNotFoundException as e ->
@@ -78,9 +72,19 @@ type CacheService() =
                             EventLog.WriteEntry(logSource, e.Message, EventLogEntryType.Warning)
                             outbox.Reply []
                         return! MessageHandler cache cacheKeys volatileCacheSize volatileCacheMaxSize
-                    | Size(newVolatileCacheSize) ->
-                        // TODO
-                        return! MessageHandler cache cacheKeys newVolatileCacheSize volatileCacheMaxSize
+                    | Size(newVolatileCacheMaxSize) ->
+                        let rec increase (lCache: (int * (bool * byte list)) list) mCache volatileCacheSize =
+                            if lCache.IsEmpty then
+                                (mCache, volatileCacheSize)
+                            else
+                                let (key, (isVolatile, value)) = List.head lCache
+                                if isVolatile && volatileCacheSize + value.Length > newVolatileCacheMaxSize then
+                                    serializeCacheLine key (box value)
+                                    increase (List.tail lCache) (Map.add key (false, []) mCache) volatileCacheSize
+                                else
+                                    increase (List.tail lCache) (Map.add key (isVolatile, value) mCache) (volatileCacheSize + value.Length)
+                        let (cache, volatileCacheSize) = increase (Map.toList cache) (new Map<int, bool * byte list>([])) 0
+                        return! MessageHandler cache cacheKeys volatileCacheSize volatileCacheMaxSize
                     | Log(log) ->
                         // TODO
                         return! MessageHandler cache cacheKeys volatileCacheSize volatileCacheMaxSize}

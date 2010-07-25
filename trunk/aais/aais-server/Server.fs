@@ -1,10 +1,10 @@
 ﻿#light
 
-module Application.Server.Main
+module Server
 
 open System
 
-open Application.Server.CacheService
+open CacheService
 
 let cache = new CacheService()
 let key1 = cache.store [for i in 0 .. 8 -> byte i]

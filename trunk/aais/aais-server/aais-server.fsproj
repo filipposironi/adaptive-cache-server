@@ -42,6 +42,7 @@
     <Reference Include="System.Numerics" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="Helpers.fs" />
     <Compile Include="CacheService.fs" />
     <Compile Include="Server.fs" />
   </ItemGroup>
