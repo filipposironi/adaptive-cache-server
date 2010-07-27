@@ -14,11 +14,11 @@ open Helpers
 open CacheService
 
 let private logSource = "AdaptiveServer"
-let private logName = "Application"
+let mutable logLevel = "warning"
 
 let private cache = new CacheService()
-let private cacheServiceToken = new CancellationTokenSource()
 
+let private cacheServiceToken = new CancellationTokenSource()
 let private cacheService = async {
     let address = "127.0.0.1"
     let port = 1234
@@ -41,12 +41,8 @@ let private cacheService = async {
             writer.WriteLine(ASCII.GetString(List.toArray value))
             writer.Flush()
         | _ ->
-            let warning = "command not found"
-            if not (EventLog.SourceExists(logSource)) then
-                EventLog.CreateEventSource(logSource, logName)
-            EventLog.WriteEntry(logSource, warning, EventLogEntryType.Warning)
-            writer.WriteLine(warning)
-            writer.Flush()
+            // TODO
+            ()
         reader.Close()
         writer.Close()
         socket.Close()}
@@ -55,16 +51,13 @@ Async.Start(cacheService, cacheServiceToken.Token)
 let mutable running = true
 while running do
     match Console.ReadLine() with
-    | ParseRegex "(size)(\s+)(\d+)$" (head :: tail) ->
-        cache.size (Int32.Parse(head))
-    | ParseRegex "(log)(\s+)(enable|disable)" (head :: tail) ->
-        cache.log (if head = "enable" then true else false)
-    | ParseRegex "(quit)$" (head :: tail) ->
+    | ParseRegex "(size)(\s+)(\d+)$" (size :: tail) ->
+        cache.size (Int32.Parse(size))
+    | ParseRegex "(log)(\s+)(info|warning|error)" (level :: tail) ->
+        cache.log level
+    | ParseRegex "(quit)$" _ ->
         cacheServiceToken.Cancel()
         running <- false
     | _ ->
-        let warning = "command not found"
-        if not (EventLog.SourceExists(logSource)) then
-            EventLog.CreateEventSource(logSource, logName)
-            EventLog.WriteEntry(logSource, warning, EventLogEntryType.Warning)
-            Console.WriteLine(warning)
+        writeLogEntry logSource "warning" "Command not found"
+    | _ -> ()

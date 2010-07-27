@@ -2,10 +2,27 @@
 
 module Helpers
 
+open System
+open System.Diagnostics
 open System.IO
 open System.Runtime.Serialization
 open System.Runtime.Serialization.Formatters.Binary
 open System.Text.RegularExpressions
+
+let writeLogEntry source level message =
+    let name = "Application"
+    if not (EventLog.SourceExists(source)) then
+        EventLog.CreateEventSource(source, name)
+    match level with
+    | "info" ->
+        EventLog.WriteEntry(source, message, EventLogEntryType.Information)        
+    | "warning" ->
+        EventLog.WriteEntry(source, message, EventLogEntryType.Warning)
+        Console.WriteLine(message)
+    | "error" ->
+        EventLog.WriteEntry(source, message, EventLogEntryType.Error)
+        Console.WriteLine(message)
+    | _ -> ()
 
 let serializeCacheLine key value =
     use file = new FileStream(key.ToString() + ".dat", FileMode.Create)
