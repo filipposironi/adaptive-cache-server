@@ -9,20 +9,23 @@ open System.Runtime.Serialization
 open System.Runtime.Serialization.Formatters.Binary
 open System.Text.RegularExpressions
 
+type LogLevel = Info
+              | Warning
+              | Error
+
 let writeLogEntry source level message =
     let name = "Application"
     if not (EventLog.SourceExists(source)) then
         EventLog.CreateEventSource(source, name)
     match level with
-    | "info" ->
+    | Info ->
         EventLog.WriteEntry(source, message, EventLogEntryType.Information)        
-    | "warning" ->
+    | Warning ->
         EventLog.WriteEntry(source, message, EventLogEntryType.Warning)
         Console.WriteLine(message)
-    | "error" ->
+    | Error ->
         EventLog.WriteEntry(source, message, EventLogEntryType.Error)
         Console.WriteLine(message)
-    | _ -> ()
 
 let serializeCacheLine key value =
     use file = new FileStream(key.ToString() + ".dat", FileMode.Create)

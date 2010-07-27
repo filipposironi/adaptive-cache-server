@@ -14,7 +14,7 @@ let private client = new TcpClient(address, port)
 let private reader = new StreamReader(client.GetStream())
 let private writer = new StreamWriter(client.GetStream())
 
-let strings = ["Pera"; "Figa"; "Zoccola"; "Siro"; "Gianduia"; "Torrone"]
+let strings = ["pera"; "mela"; "fragola"; "banana"; "albicocca"]
 for string in strings do
     writer.WriteLine("store")
     writer.Flush()
