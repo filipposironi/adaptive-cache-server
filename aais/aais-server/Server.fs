@@ -13,13 +13,12 @@ open System.Threading
 open Helpers
 open CacheService
 
-let private logSource = "AdaptiveServer"
 let mutable logLevel = "warning"
-
 let private cache = new CacheService()
 
 let private cacheServiceToken = new CancellationTokenSource()
 let private cacheService = async {
+    let logSource = "AdaptiveServer"
     let address = "127.0.0.1"
     let port = 1234
     let listener = new TcpListener(IPAddress.Parse(address), port)
@@ -29,7 +28,8 @@ let private cacheService = async {
         use reader = new StreamReader(socket.GetStream())
         use writer = new StreamWriter(socket.GetStream())
         let ASCII = new ASCIIEncoding()
-        match reader.ReadLine() with
+        let command = reader.ReadLine()
+        match command with
         | ParseRegex "(store)(\s+)(.+)$" (head :: tail) ->
             let key = cache.store (List.ofArray (ASCII.GetBytes(head)))
             writer.WriteLine(key.ToString())
@@ -41,8 +41,7 @@ let private cacheService = async {
             writer.WriteLine(ASCII.GetString(List.toArray value))
             writer.Flush()
         | _ ->
-            // TODO
-            ()
+            writeLogEntry logSource Warning ("Command \"" + command + "\" not supported.")
         reader.Close()
         writer.Close()
         socket.Close()}
@@ -50,7 +49,9 @@ Async.Start(cacheService, cacheServiceToken.Token)
 
 let mutable running = true
 while running do
-    match Console.ReadLine() with
+    let logSource = "AdaptiveServerAdminConsole"
+    let command = Console.ReadLine()
+    match command with
     | ParseRegex "(size)(\s+)(\d+)$" (size :: tail) ->
         cache.size (Int32.Parse(size))
     | ParseRegex "(log)(\s+)(info|warning|error)" (level :: tail) ->
@@ -59,5 +60,5 @@ while running do
         cacheServiceToken.Cancel()
         running <- false
     | _ ->
-        writeLogEntry logSource "warning" "Command not found"
+        writeLogEntry logSource Warning ("Command \"" + command + "\" not found.")
     | _ -> ()
