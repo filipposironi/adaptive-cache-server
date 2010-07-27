@@ -22,7 +22,7 @@ type private Message = Store of byte list * AsyncReplyChannel<int>
                      | Remove of int
                      | Search of int * AsyncReplyChannel<byte list>
                      | Size of int
-                     | Log of bool
+                     | Log of string
 
 type CacheService() =
     let MessageService = MailboxProcessor.Start(fun inbox ->
@@ -104,7 +104,7 @@ type CacheService() =
                         decrease
                 let (cache, volatileCacheSize) = update cache
                 return! MessageHandler cache cacheKeys volatileCacheSize volatileCacheMaxSize
-            | Log(log) ->
+            | Log(level) ->
                 // TODO
                 return! MessageHandler cache cacheKeys volatileCacheSize volatileCacheMaxSize}
         MessageHandler initialCache initialCacheKeys initialVolatileCacheSize initialVolatileCacheMaxSize)
