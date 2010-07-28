@@ -9,16 +9,16 @@ open System.Runtime.Serialization
 open System.Runtime.Serialization.Formatters.Binary
 open System.Text.RegularExpressions
 
-type LogLevel = Info
+type LogLevel = Information
               | Warning
               | Error
 
-let writeLogEntry source level message =
+let writeLogEntry source message level =
     let name = "Application"
     if not (EventLog.SourceExists(source)) then
         EventLog.CreateEventSource(source, name)
     match level with
-    | Info ->
+    | Information ->
         EventLog.WriteEntry(source, message, EventLogEntryType.Information)        
     | Warning ->
         EventLog.WriteEntry(source, message, EventLogEntryType.Warning)

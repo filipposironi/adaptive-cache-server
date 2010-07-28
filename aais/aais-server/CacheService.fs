@@ -3,16 +3,11 @@
 module CacheService
 
 open System
-open System.Collections
-open System.Collections.Generic
-open System.Diagnostics
 open System.IO
 
 open Helpers
 open MemoryPolicies
-
-let private logSource = "AdaptiveCacheService"
-let private logName = "Application"
+open LogPolicies
 
 let private initialCache = new Map<int, bool * int * byte list>([])
 let private initialCacheKeys = Map.ofList [for i in 0 .. (Convert.ToInt32 UInt16.MaxValue) -> (i, true)]
@@ -25,7 +20,8 @@ type private Message = Store of byte list * AsyncReplyChannel<int>
                      | Size of int
                      | Log of string
 
-type CacheService(memoryPolicy: MemoryPolicy) =
+type CacheService(memoryPolicy: MemoryPolicy, logPolicy: LogPolicy) =
+    let source = "AdaptiveCacheService"
     let MessageService = MailboxProcessor.Start(fun inbox ->
         let rec MessageHandler cache cacheKeys volatileCacheSize volatileCacheMaxSize = async {
             let! message = inbox.Receive()
@@ -34,16 +30,16 @@ type CacheService(memoryPolicy: MemoryPolicy) =
                 let key = Map.findKey (fun key value -> value = true) cacheKeys
                 let cacheKeys = Map.add key false cacheKeys
                 let (cache, volatileCacheSize, log) = memoryPolicy.store key value cache volatileCacheSize
-                // TODO: log
+                logPolicy.log source log
                 outbox.Reply key
                 return! MessageHandler cache cacheKeys volatileCacheSize volatileCacheMaxSize
             | Remove(key) ->
                 let (cache, volatileCacheSize, log) = memoryPolicy.remove key cache volatileCacheSize
-                // TODO: log
+                logPolicy.log source log
                 return! MessageHandler cache cacheKeys volatileCacheSize volatileCacheMaxSize
             | Search(key, outbox) ->
                 let (value, log) = memoryPolicy.search key cache 
-                // TODO: log
+                logPolicy.log source log
                 outbox.Reply value
                 return! MessageHandler cache cacheKeys volatileCacheSize volatileCacheMaxSize
             | Size(newVolatileCacheMaxSize) ->

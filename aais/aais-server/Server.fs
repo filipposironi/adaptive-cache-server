@@ -11,6 +11,8 @@ open System.Text
 open System.Threading
 
 open Helpers
+open LogPolicies
+open MemoryPolicies
 open CacheService
 
 let mutable logLevel = "warning"
@@ -41,7 +43,7 @@ let private cacheService = async {
             writer.WriteLine(ASCII.GetString(List.toArray value))
             writer.Flush()
         | _ ->
-            writeLogEntry logSource Warning ("Command \"" + command + "\" not supported.")
+            writeLogEntry logSource ("Command \"" + command + "\" not supported.") Warning
         reader.Close()
         writer.Close()
         socket.Close()}
@@ -60,5 +62,5 @@ while running do
         cacheServiceToken.Cancel()
         running <- false
     | _ ->
-        writeLogEntry logSource Warning ("Command \"" + command + "\" not found.")
+        writeLogEntry logSource ("Command \"" + command + "\" not found.") Warning
     | _ -> ()
