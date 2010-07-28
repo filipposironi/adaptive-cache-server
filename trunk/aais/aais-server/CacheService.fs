@@ -97,12 +97,7 @@ type CacheService() =
                                 loop lCacheTail (Map.add key (false, length, []) mCache) volatileCacheSize
                     let (volatileCache, persistentCache) = Map.partition (fun _ (isVolatile, _, _) -> isVolatile) cache
                     loop (Map.toList persistentCache) volatileCache volatileCacheSize
-                let update =
-                    if newVolatileCacheMaxSize > volatileCacheMaxSize then
-                        increase
-                    else
-                        decrease
-                let (cache, volatileCacheSize) = update cache
+                let (cache, volatileCacheSize) = (if newVolatileCacheMaxSize > volatileCacheMaxSize then increase else decrease) cache
                 return! MessageHandler cache cacheKeys volatileCacheSize volatileCacheMaxSize
             | Log(level) ->
                 // TODO

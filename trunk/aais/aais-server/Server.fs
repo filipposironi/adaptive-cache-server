@@ -30,13 +30,13 @@ let private cacheService = async {
         let ASCII = new ASCIIEncoding()
         let command = reader.ReadLine()
         match command with
-        | ParseRegex "(store)(\s+)(.+)$" (head :: tail) ->
+        | ParseRegex "^(store)(\s+)(.+)$" (head :: tail) ->
             let key = cache.store (List.ofArray (ASCII.GetBytes(head)))
             writer.WriteLine(key.ToString())
             writer.Flush()
-        | ParseRegex "(remove)(\s+)(\d+)$" (head :: tail) ->
+        | ParseRegex "^(remove)(\s+)(\d+)$" (head :: tail) ->
             cache.remove (Int32.Parse(head))
-        | ParseRegex "(search)(\s+)(\d+)$" (head :: tail) ->
+        | ParseRegex "^(search)(\s+)(\d+)$" (head :: tail) ->
             let value = cache.search (Int32.Parse(head))
             writer.WriteLine(ASCII.GetString(List.toArray value))
             writer.Flush()
@@ -52,11 +52,11 @@ while running do
     let logSource = "AdaptiveServerAdminConsole"
     let command = Console.ReadLine()
     match command with
-    | ParseRegex "(size)(\s+)(\d+)$" (size :: tail) ->
+    | ParseRegex "^(size)(\s+)(\d+)$" (size :: tail) ->
         cache.size (Int32.Parse(size))
-    | ParseRegex "(log)(\s+)(info|warning|error)" (level :: tail) ->
+    | ParseRegex "^(log)(\s+)(info|warning|error)" (level :: tail) ->
         cache.log level
-    | ParseRegex "(quit)$" _ ->
+    | ParseRegex "^(quit)$" _ ->
         cacheServiceToken.Cancel()
         running <- false
     | _ ->
