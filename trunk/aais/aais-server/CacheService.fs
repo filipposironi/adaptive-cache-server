@@ -9,6 +9,7 @@ open System.Diagnostics
 open System.IO
 
 open Helpers
+open MemoryPolicies
 
 let private logSource = "AdaptiveCacheService"
 let private logName = "Application"
@@ -24,7 +25,7 @@ type private Message = Store of byte list * AsyncReplyChannel<int>
                      | Size of int
                      | Log of string
 
-type CacheService() =
+type CacheService(memoryPolicy: MemoryPolicy) =
     let MessageService = MailboxProcessor.Start(fun inbox ->
         let rec MessageHandler cache cacheKeys volatileCacheSize volatileCacheMaxSize = async {
             let! message = inbox.Receive()
@@ -32,44 +33,18 @@ type CacheService() =
             | Store(value, outbox) ->
                 let key = Map.findKey (fun key value -> value = true) cacheKeys
                 let cacheKeys = Map.add key false cacheKeys
-                if volatileCacheSize + value.Length <= volatileCacheMaxSize then
-                    let cache = Map.add key (true, value.Length, value) cache
-                    let volatileCacheSize = volatileCacheSize + value.Length
-                    outbox.Reply key
-                    return! MessageHandler cache cacheKeys volatileCacheSize volatileCacheMaxSize
-                else
-                    let cache = Map.add key (false, value.Length, []) cache
-                    serializeCacheLine key (box value)
-                    outbox.Reply key
-                    return! MessageHandler cache cacheKeys volatileCacheSize volatileCacheMaxSize
+                let (cache, volatileCacheSize, log) = memoryPolicy.store key value cache volatileCacheSize
+                // TODO: log
+                outbox.Reply key
+                return! MessageHandler cache cacheKeys volatileCacheSize volatileCacheMaxSize
             | Remove(key) ->
-                if Map.containsKey key cache then
-                    match Map.find key cache with
-                    | (true, length, _) ->
-                        let volatileCacheSize = volatileCacheSize - length
-                        let cache = Map.remove key cache
-                        let cacheKeys = Map.add key true cacheKeys
-                        return! MessageHandler cache cacheKeys volatileCacheSize volatileCacheMaxSize
-                    | (false, _, _) ->
-                        File.Delete(key.ToString() + ".dat")
-                        let cache = Map.remove key cache
-                        let cacheKeys = Map.add key true cacheKeys
-                        return! MessageHandler cache cacheKeys volatileCacheSize volatileCacheMaxSize
-                else
-                    return! MessageHandler cache cacheKeys volatileCacheSize volatileCacheMaxSize
+                let (cache, volatileCacheSize, log) = memoryPolicy.remove key cache volatileCacheSize
+                // TODO: log
+                return! MessageHandler cache cacheKeys volatileCacheSize volatileCacheMaxSize
             | Search(key, outbox) ->
-                try
-                    match Map.find key cache with
-                    | (true, _, value) ->
-                        outbox.Reply value
-                    | (false, _, _) ->
-                        outbox.Reply (unbox<byte list> (deserializeCacheLine key))
-                with
-                | :? KeyNotFoundException as e ->
-                    if not (EventLog.SourceExists(logSource)) then
-                        EventLog.CreateEventSource(logSource, logName)
-                    EventLog.WriteEntry(logSource, e.Message, EventLogEntryType.Warning)
-                    outbox.Reply []
+                let (value, log) = memoryPolicy.search key cache 
+                // TODO: log
+                outbox.Reply value
                 return! MessageHandler cache cacheKeys volatileCacheSize volatileCacheMaxSize
             | Size(newVolatileCacheMaxSize) ->
                 let decrease (cache: Map<int, bool * int * byte list>) =
