@@ -6,24 +6,20 @@ open System
 open System.IO
 
 open Helpers
-open MemoryPolicies
 open LogPolicies
-
-let private initialCache = new Map<int, bool * int * byte list>([])
-let private initialCacheKeys = Map.ofList [for i in 0 .. (Convert.ToInt32 UInt16.MaxValue) -> (i, true)]
-let private initialVolatileCacheSize = 0
-let private initialVolatileCacheMaxSize = 1024
+open MemoryPolicies
 
 type private Message = Store of byte list * AsyncReplyChannel<int>
                      | Remove of int
                      | Search of int * AsyncReplyChannel<byte list>
-                     | Size of int
-                     | Log of string
+                     | LowMemory of int
+                     | HighMemory
+                     | Log of LogLevel
 
-type CacheService(memoryPolicy: MemoryPolicy, logPolicy: LogPolicy) =
+type CacheService() =
     let source = "AdaptiveCacheService"
-    let MessageService = MailboxProcessor.Start(fun inbox ->
-        let rec MessageHandler cache cacheKeys volatileCacheSize volatileCacheMaxSize = async {
+    let messageService = MailboxProcessor.Start(fun inbox ->
+        let rec loop cache cacheKeys volatileCacheSize (memoryPolicy: MemoryPolicy) (logPolicy: LogPolicy) = async {
             let! message = inbox.Receive()
             match message with
             | Store(value, outbox) ->
@@ -32,51 +28,48 @@ type CacheService(memoryPolicy: MemoryPolicy, logPolicy: LogPolicy) =
                 let (cache, volatileCacheSize, log) = memoryPolicy.store key value cache volatileCacheSize
                 logPolicy.log source log
                 outbox.Reply key
-                return! MessageHandler cache cacheKeys volatileCacheSize volatileCacheMaxSize
+                return! loop cache cacheKeys volatileCacheSize memoryPolicy logPolicy
             | Remove(key) ->
                 let (cache, volatileCacheSize, log) = memoryPolicy.remove key cache volatileCacheSize
                 logPolicy.log source log
-                return! MessageHandler cache cacheKeys volatileCacheSize volatileCacheMaxSize
+                return! loop cache cacheKeys volatileCacheSize memoryPolicy logPolicy
             | Search(key, outbox) ->
                 let (value, log) = memoryPolicy.search key cache 
                 logPolicy.log source log
                 outbox.Reply value
-                return! MessageHandler cache cacheKeys volatileCacheSize volatileCacheMaxSize
-            | Size(newVolatileCacheMaxSize) ->
-                let decrease (cache: Map<int, bool * int * byte list>) =
-                    let rec loop (lCache: (int * (bool * int * byte list)) list) mCache volatileCacheSize =
-                        match lCache with
-                        | [] -> (mCache, volatileCacheSize)
-                        | (key, (_, length, value)) :: lCacheTail ->
-                            if volatileCacheSize + length > newVolatileCacheMaxSize then
-                                serializeCacheLine key (box value)
-                                loop lCacheTail (Map.add key (false, length, []) mCache) volatileCacheSize
-                            else
-                                loop lCacheTail (Map.add key (true, length, value) mCache) (volatileCacheSize + length)
-                    let (volatileCache, persistentCache) = Map.partition (fun _ (isVolatile, _, _) -> isVolatile) cache
-                    loop (Map.toList volatileCache) persistentCache 0
-                let increase (cache: Map<int, bool * int * byte list>) =
-                    let rec loop (lCache: (int * (bool * int * byte list)) list) mCache volatileCacheSize =
-                        match lCache with
-                        | [] -> (mCache, volatileCacheSize)
-                        | (key, (_, length, _)) :: lCacheTail ->
-                            if volatileCacheSize + length < newVolatileCacheMaxSize then
-                                let value = unbox<byte list> (deserializeCacheLine key)
-                                File.Delete(key.ToString() + ".dat")
-                                loop lCacheTail (Map.add key (true, length, value) mCache) (volatileCacheSize + length)
-                            else
-                                loop lCacheTail (Map.add key (false, length, []) mCache) volatileCacheSize
-                    let (volatileCache, persistentCache) = Map.partition (fun _ (isVolatile, _, _) -> isVolatile) cache
-                    loop (Map.toList persistentCache) volatileCache volatileCacheSize
-                let (cache, volatileCacheSize) = (if newVolatileCacheMaxSize > volatileCacheMaxSize then increase else decrease) cache
-                return! MessageHandler cache cacheKeys volatileCacheSize volatileCacheMaxSize
+                return! loop cache cacheKeys volatileCacheSize memoryPolicy logPolicy
+            | LowMemory(volatileCacheMaxSize) ->
+                let oldVolatileCacheMaxSize = memoryPolicy.size
+                let memoryPolicy = new LowMemoryPolicy(volatileCacheMaxSize)
+                let (cache, volatileCacheSize) = memoryPolicy.update cache volatileCacheSize oldVolatileCacheMaxSize
+                let log = [("Memory context changed to \"Low Availability\".", Information); ("Memory bound set to \"" + volatileCacheMaxSize.ToString() + "\".", Information)]
+                logPolicy.log source log
+                return! loop cache cacheKeys volatileCacheSize memoryPolicy logPolicy
+            | HighMemory ->
+                let oldVolatileCacheMaxSize = memoryPolicy.size
+                let memoryPolicy = new HighMemoryPolicy()
+                let (cache, volatileCacheSize) = memoryPolicy.update cache volatileCacheSize oldVolatileCacheMaxSize
+                let log = [("Memory context changed to \"High Availability\".", Information)]
+                logPolicy.log source log
+                return! loop cache cacheKeys volatileCacheSize memoryPolicy logPolicy
             | Log(level) ->
-                // TODO
-                return! MessageHandler cache cacheKeys volatileCacheSize volatileCacheMaxSize}
-        MessageHandler initialCache initialCacheKeys initialVolatileCacheSize initialVolatileCacheMaxSize)
+                let logPolicy = FactoryLogPolicy.create level
+                match level with
+                | Information ->
+                    let log = [("Log context changed to \"Information\".", Information)]
+                    logPolicy.log source log
+                | Warning ->
+                    let log = [("Log context changed to \"Warning\".", Information)]
+                    logPolicy.log source log
+                | Error ->
+                    let log = [("Log context changed to \"Error\".", Information)]
+                    logPolicy.log source log
+                return! loop cache cacheKeys volatileCacheSize memoryPolicy logPolicy}
+        loop (new Map<int, bool * int * byte list>([])) (Map.ofList [for i in 0 .. (Convert.ToInt32 UInt16.MaxValue) -> (i, true)]) 0 (new HighMemoryPolicy()) (new ErrorLogPolicy()))
 
-    member this.store value = MessageService.PostAndReply(fun inbox -> Store(value, inbox))
-    member this.remove key = MessageService.Post(Remove(key))
-    member this.search key = MessageService.PostAndReply(fun inbox -> Search(key, inbox))
-    member this.size size = MessageService.Post(Size(size))
-    member this.log log = MessageService.Post(Log(log))
+    member this.store value = messageService.PostAndReply(fun inbox -> Store(value, inbox))
+    member this.remove key = messageService.Post(Remove(key))
+    member this.search key = messageService.PostAndReply(fun inbox -> Search(key, inbox))
+    member this.low size = messageService.Post(LowMemory(size))
+    member this.high = messageService.Post(HighMemory)
+    member this.log level = messageService.Post(Log(level))

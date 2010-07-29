@@ -43,8 +43,8 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Helpers.fs" />
-    <Compile Include="MemoryPolicies.fs" />
     <Compile Include="LogPolicies.fs" />
+    <Compile Include="MemoryPolicies.fs" />
     <Compile Include="CacheService.fs" />
     <Compile Include="Server.fs" />
   </ItemGroup>

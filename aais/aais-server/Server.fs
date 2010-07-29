@@ -15,12 +15,12 @@ open LogPolicies
 open MemoryPolicies
 open CacheService
 
-let mutable logLevel = "warning"
+let mutable logPolicy = FactoryLogPolicy.create Warning
 let private cache = new CacheService()
 
 let private cacheServiceToken = new CancellationTokenSource()
 let private cacheService = async {
-    let logSource = "AdaptiveServer"
+    let source = "AdaptiveServer"
     let address = "127.0.0.1"
     let port = 1234
     let listener = new TcpListener(IPAddress.Parse(address), port)
@@ -43,7 +43,8 @@ let private cacheService = async {
             writer.WriteLine(ASCII.GetString(List.toArray value))
             writer.Flush()
         | _ ->
-            writeLogEntry logSource ("Command \"" + command + "\" not supported.") Warning
+            let log = [("Command \"" + command + "\" not supported.", Warning)]
+            logPolicy.log source log
         reader.Close()
         writer.Close()
         socket.Close()}
@@ -51,16 +52,22 @@ Async.Start(cacheService, cacheServiceToken.Token)
 
 let mutable running = true
 while running do
-    let logSource = "AdaptiveServerAdminConsole"
+    let source = "AdaptiveServerAdminConsole"
     let command = Console.ReadLine()
     match command with
-    | ParseRegex "^(size)(\s+)(\d+)$" (size :: tail) ->
-        cache.size (Int32.Parse(size))
-    | ParseRegex "^(log)(\s+)(info|warning|error)" (level :: tail) ->
-        cache.log level
+    | ParseRegex "^(high)$" [] ->
+        cache.high
+    | ParseRegex "^(low)(\s+)(\d+)$" (size :: tail) ->
+        cache.low (Int32.Parse(size))
+    | ParseRegex "^(log)(\s+)(information|warning|error)" (level :: tail) ->
+        match level with
+        | "information" -> cache.log Information
+        | "warning" -> cache.log Warning
+        | "error" -> cache.log Error
+        | _ -> ()
     | ParseRegex "^(quit)$" _ ->
         cacheServiceToken.Cancel()
         running <- false
     | _ ->
-        writeLogEntry logSource ("Command \"" + command + "\" not found.") Warning
-    | _ -> ()
+        let log = [("Command \"" + command + "\" not found.", Warning)]
+        logPolicy.log source log
