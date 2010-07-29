@@ -26,28 +26,30 @@ let private cacheService = async {
     let listener = new TcpListener(IPAddress.Parse(address), port)
     listener.Start(10)
     while not cacheServiceToken.IsCancellationRequested do
-        use socket = listener.AcceptTcpClient()
-        use reader = new StreamReader(socket.GetStream())
-        use writer = new StreamWriter(socket.GetStream())
-        let ASCII = new ASCIIEncoding()
-        let command = reader.ReadLine()
-        match command with
-        | ParseRegex "^(store)(\s+)(.+)$" (head :: tail) ->
-            let key = cache.store (List.ofArray (ASCII.GetBytes(head)))
-            writer.WriteLine(key.ToString())
-            writer.Flush()
-        | ParseRegex "^(remove)(\s+)(\d+)$" (head :: tail) ->
-            cache.remove (Int32.Parse(head))
-        | ParseRegex "^(search)(\s+)(\d+)$" (head :: tail) ->
-            let value = cache.search (Int32.Parse(head))
-            writer.WriteLine(ASCII.GetString(List.toArray value))
-            writer.Flush()
-        | _ ->
-            let log = [("Command \"" + command + "\" not supported.", Warning)]
-            logPolicy.log source log
-        reader.Close()
-        writer.Close()
-        socket.Close()}
+        let socket = listener.AcceptTcpClient()
+        let loop (socket: TcpClient) = async {
+            use reader = new StreamReader(socket.GetStream())
+            use writer = new StreamWriter(socket.GetStream())
+            let ASCII = new ASCIIEncoding()
+            let command = reader.ReadLine()
+            match command with
+            | ParseRegex "^(store)(\s+)(.+)$" (head :: tail) ->
+                let key = cache.store (List.ofArray (ASCII.GetBytes(head)))
+                writer.WriteLine(key.ToString())
+                writer.Flush()
+            | ParseRegex "^(remove)(\s+)(\d+)$" (head :: tail) ->
+                cache.remove (Int32.Parse(head))
+            | ParseRegex "^(search)(\s+)(\d+)$" (head :: tail) ->
+                let value = cache.search (Int32.Parse(head))
+                writer.WriteLine(ASCII.GetString(List.toArray value))
+                writer.Flush()
+            | _ ->
+                let log = [("Command \"" + command + "\" not supported.", Warning)]
+                logPolicy.log source log
+            reader.Close()
+            writer.Close()
+            socket.Close()}
+        Async.Start(loop socket)}
 Async.Start(cacheService, cacheServiceToken.Token)
 
 let mutable running = true
