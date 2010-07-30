@@ -36,6 +36,8 @@ type HighMemoryPolicy() =
     member this.remove = (this :> MemoryPolicy).remove
     member this.search = (this :> MemoryPolicy).search
     member this.update = (this :> MemoryPolicy).update
+
+    override this.ToString() = "Memory context is \"High Availability\""
     
     interface MemoryPolicy with
         member this.size = infinity
@@ -88,6 +90,8 @@ type LowMemoryPolicy(size) =
     member this.remove = (this :> MemoryPolicy).remove
     member this.search = (this :> MemoryPolicy).search
     member this.update = (this :> MemoryPolicy).update
+
+    override this.ToString() = "Memory context is \"Low Availability\""
     
     interface MemoryPolicy with
         member this.size = float size

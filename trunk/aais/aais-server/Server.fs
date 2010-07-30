@@ -57,9 +57,9 @@ while running do
     let source = "AdaptiveServerAdminConsole"
     let command = Console.ReadLine()
     match command with
-    | ParseRegex "^(high)$" [] ->
+    | ParseRegex "^(memory high)$" _ ->
         cache.high
-    | ParseRegex "^(low)(\s+)(\d+)$" (size :: tail) ->
+    | ParseRegex "^(memory low)(\s+)(\d+)$" (size :: tail) ->
         cache.low (Int32.Parse(size))
     | ParseRegex "^(log)(\s+)(information|warning|error)" (level :: tail) ->
         match level with
@@ -67,6 +67,9 @@ while running do
         | "warning" -> cache.log Warning
         | "error" -> cache.log Error
         | _ -> ()
+    | ParseRegex "^(config)$" _ ->
+        for config in cache.config do
+            Console.WriteLine(config)
     | ParseRegex "^(quit)$" _ ->
         cacheServiceToken.Cancel()
         running <- false
