@@ -15,6 +15,7 @@ type private Message = Store of byte list * AsyncReplyChannel<int>
                      | LowMemory of int
                      | HighMemory
                      | Log of LogLevel
+                     | Config of AsyncReplyChannel<string list>
 
 type CacheService() =
     let source = "AdaptiveCacheService"
@@ -64,8 +65,11 @@ type CacheService() =
                 | Error ->
                     let log = [("Log context changed to \"Error\".", Information)]
                     logPolicy.log source log
+                return! loop cache cacheKeys volatileCacheSize memoryPolicy logPolicy
+            | Config(outbox) ->
+                outbox.Reply [memoryPolicy.ToString(); logPolicy.ToString()]
                 return! loop cache cacheKeys volatileCacheSize memoryPolicy logPolicy}
-        loop (new Map<int, bool * int * byte list>([])) (Map.ofList [for i in 0 .. (Convert.ToInt32 UInt16.MaxValue) -> (i, true)]) 0 (new HighMemoryPolicy()) (new ErrorLogPolicy()))
+        loop (new Map<int, bool * int * byte list>([])) (Map.ofList [for i in 0 .. (Convert.ToInt32 UInt16.MaxValue) -> (i, true)]) 0 (new HighMemoryPolicy()) (FactoryLogPolicy.create Warning))
 
     member this.store value = messageService.PostAndReply(fun inbox -> Store(value, inbox))
     member this.remove key = messageService.Post(Remove(key))
@@ -73,3 +77,4 @@ type CacheService() =
     member this.low size = messageService.Post(LowMemory(size))
     member this.high = messageService.Post(HighMemory)
     member this.log level = messageService.Post(Log(level))
+    member this.config = messageService.PostAndReply(fun inbox -> Config(inbox))

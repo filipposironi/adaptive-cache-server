@@ -31,6 +31,8 @@ type LogPolicy =
 
 type InformationLogPolicy() =
     member this.log = (this :> LogPolicy).log
+
+    override this.ToString() = "Log context is \"Information Log\""
     
     interface LogPolicy with
         member this.log source messages =
@@ -39,6 +41,8 @@ type InformationLogPolicy() =
 
 type WarningLogPolicy() =
     member this.log = (this :> LogPolicy).log
+
+    override this.ToString() = "Log context is \"Warning Log\""
     
     interface LogPolicy with
         member this.log source messages =
@@ -50,6 +54,8 @@ type WarningLogPolicy() =
 
 type ErrorLogPolicy() =
     member this.log = (this :> LogPolicy).log
+
+    override this.ToString() = "Log context is \"Error Log\""
     
     interface LogPolicy with
         member this.log source messages =
