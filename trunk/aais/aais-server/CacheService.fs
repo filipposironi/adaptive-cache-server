@@ -21,7 +21,7 @@ type CacheService() =
     let source = "AdaptiveCacheService"
     let timeout = 1000
     let messageService = MailboxProcessor.Start(fun inbox ->
-        let rec loop cache keys volatileCacheSize (memoryPolicy: MemoryPolicy) (logPolicy: LogPolicy) = async {
+        let rec loop cache keys volatileCacheSize (memoryPolicy: IMemoryPolicy) (logPolicy: ILogPolicy) = async {
             let! message = inbox.Receive()
             match message with
             | Store(value, outbox) ->

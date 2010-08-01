@@ -23,7 +23,7 @@ let deserializeCacheLine key =
     file.Close()
     value
 
-type MemoryPolicy =
+type IMemoryPolicy =
     abstract member store: int -> byte list -> Map<int, (bool * int * byte list)> -> int -> (Map<int, (bool * int * byte list)> * int * (string * LogLevel) list)
     abstract member remove: int -> Map<int, (bool * int * byte list)> -> int -> (Map<int, (bool * int * byte list)> * int * (string * LogLevel) list)
     abstract member search: int -> Map<int, (bool * int * byte list)> -> (byte list * ((string * LogLevel) list))
@@ -39,7 +39,7 @@ type HighMemoryPolicy() =
 
     override this.ToString() = "Memory context is \"High Availability\""
     
-    interface MemoryPolicy with
+    interface IMemoryPolicy with
         member this.size = infinity
 
         member this.store key value cache volatileCacheSize =
@@ -93,7 +93,7 @@ type LowMemoryPolicy(size) =
 
     override this.ToString() = "Memory context is \"Low Availability\""
     
-    interface MemoryPolicy with
+    interface IMemoryPolicy with
         member this.size = float size
 
         member this.store key value cache volatileCacheSize =
