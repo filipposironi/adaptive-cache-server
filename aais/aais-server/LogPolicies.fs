@@ -26,7 +26,7 @@ let writeLogEntry source message level =
         Console.WriteLine(message)
 
 
-type LogPolicy =
+type ILogPolicy =
     abstract log: string -> (string * LogLevel) list -> unit
 
 type InformationLogPolicy() =
@@ -34,7 +34,7 @@ type InformationLogPolicy() =
 
     override this.ToString() = "Log context is \"Information Log\""
     
-    interface LogPolicy with
+    interface ILogPolicy with
         member this.log source messages =
             for (message, level) in messages do
                 writeLogEntry source message level
@@ -44,7 +44,7 @@ type WarningLogPolicy() =
 
     override this.ToString() = "Log context is \"Warning Log\""
     
-    interface LogPolicy with
+    interface ILogPolicy with
         member this.log source messages =
             for (message, level) in messages do
                 match level with
@@ -57,7 +57,7 @@ type ErrorLogPolicy() =
 
     override this.ToString() = "Log context is \"Error Log\""
     
-    interface LogPolicy with
+    interface ILogPolicy with
         member this.log source messages =
             for (message, level) in messages do
                 match level with
