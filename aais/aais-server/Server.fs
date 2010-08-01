@@ -33,16 +33,26 @@ let private cacheService = async {
             let ASCII = new ASCIIEncoding()
             let command = reader.ReadLine()
             match command with
-            | ParseRegex "^(store)(\s+)(.+)$" (head :: tail) ->
-                let key = cache.store (List.ofArray (ASCII.GetBytes(head)))
-                writer.WriteLine(key.ToString())
-                writer.Flush()
-            | ParseRegex "^(remove)(\s+)(\d+)$" (head :: tail) ->
+            | ParseRegex "^(store:)(\s+)(.+)$" (head :: tail) ->
+                let request = async {return! cache.store (List.ofArray (ASCII.GetBytes(head)))}
+                match Async.RunSynchronously(request) with
+                | None ->
+                    writer.WriteLine("error: ")
+                    writer.Flush()
+                | Some key ->
+                    writer.WriteLine("key: " + key.ToString())
+                    writer.Flush()
+            | ParseRegex "^(remove:)(\s+)(\d+)$" (head :: tail) ->
                 cache.remove (Int32.Parse(head))
-            | ParseRegex "^(search)(\s+)(\d+)$" (head :: tail) ->
-                let value = cache.search (Int32.Parse(head))
-                writer.WriteLine(ASCII.GetString(List.toArray value))
-                writer.Flush()
+            | ParseRegex "^(search:)(\s+)(\d+)$" (head :: tail) ->
+                let request = async {return! cache.search (Int32.Parse(head))}
+                match Async.RunSynchronously(request) with
+                | None ->
+                    writer.WriteLine("error: ")
+                    writer.Flush()
+                | Some value ->
+                    writer.WriteLine("value: " + ASCII.GetString(List.toArray value))
+                    writer.Flush()
             | _ ->
                 let log = [("Command \"" + command + "\" not supported.", Warning)]
                 logPolicy.log source log

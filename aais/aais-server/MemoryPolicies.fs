@@ -129,12 +129,12 @@ type LowMemoryPolicy(size) =
         member this.search key cache =
             try
                 match Map.find key cache with
-                | (true, _, value) ->
-                    let log = [("Key \"" + key.ToString() + "\" retrieved.", Information)]
-                    (value, log)
                 | (false, _, _) ->
                     let value = unbox<byte list> (deserializeCacheLine key)
                     let log = [("Key \"" + key.ToString() + "\" deserialized and retrieved.", Information)]
+                    (value, log)
+                | (true, _, value) ->
+                    let log = [("Key \"" + key.ToString() + "\" retrieved.", Information)]
                     (value, log)
             with
             | :? KeyNotFoundException ->

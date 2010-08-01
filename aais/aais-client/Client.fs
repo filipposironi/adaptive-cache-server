@@ -19,7 +19,7 @@ let store words =
             use client = new TcpClient(address, port)
             use reader = new StreamReader(client.GetStream())
             use writer = new StreamWriter(client.GetStream())
-            writer.WriteLine("store " + head)
+            writer.WriteLine("store: " + head)
             writer.Flush()
             let keys = keys @ [Int32.Parse(reader.ReadLine())]
             loop tail keys
@@ -38,7 +38,7 @@ let search keys =
             use client = new TcpClient(address, port)
             use reader = new StreamReader(client.GetStream())
             use writer = new StreamWriter(client.GetStream())
-            writer.WriteLine("search " + head.ToString())
+            writer.WriteLine("search: " + head.ToString())
             writer.Flush()
             let words = words @ [reader.ReadLine()]
             loop tail words
