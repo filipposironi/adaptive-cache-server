@@ -20,17 +20,15 @@ let writeLogEntry source message level =
         EventLog.WriteEntry(source, message, EventLogEntryType.Information)        
     | Warning ->
         EventLog.WriteEntry(source, message, EventLogEntryType.Warning)
-        Console.WriteLine(message)
     | Error ->
         EventLog.WriteEntry(source, message, EventLogEntryType.Error)
-        Console.WriteLine(message)
 
 
 type ILogPolicy =
     abstract log: string -> (string * LogLevel) list -> unit
 
 type InformationLogPolicy() =
-    member this.log = (this :> LogPolicy).log
+    member this.log = (this :> ILogPolicy).log
 
     override this.ToString() = "Log context is \"Information Log\""
     
@@ -40,7 +38,7 @@ type InformationLogPolicy() =
                 writeLogEntry source message level
 
 type WarningLogPolicy() =
-    member this.log = (this :> LogPolicy).log
+    member this.log = (this :> ILogPolicy).log
 
     override this.ToString() = "Log context is \"Warning Log\""
     
@@ -53,7 +51,7 @@ type WarningLogPolicy() =
                 | _ -> ()
 
 type ErrorLogPolicy() =
-    member this.log = (this :> LogPolicy).log
+    member this.log = (this :> ILogPolicy).log
 
     override this.ToString() = "Log context is \"Error Log\""
     
@@ -65,8 +63,8 @@ type ErrorLogPolicy() =
                 | _ -> ()
 
 type FactoryLogPolicy() =
-    static member create level =
+    static member Create level =
         match level with
-        | Information -> (new InformationLogPolicy() :> LogPolicy)
-        | Warning -> (new WarningLogPolicy() :> LogPolicy)
-        | Error -> (new ErrorLogPolicy() :> LogPolicy)
+        | Information -> (new InformationLogPolicy() :> ILogPolicy)
+        | Warning -> (new WarningLogPolicy() :> ILogPolicy)
+        | Error -> (new ErrorLogPolicy() :> ILogPolicy)

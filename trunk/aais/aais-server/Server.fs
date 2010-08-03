@@ -15,7 +15,7 @@ open LogPolicies
 open MemoryPolicies
 open CacheService
 
-let mutable logPolicy = FactoryLogPolicy.create Warning
+let mutable logPolicy = FactoryLogPolicy.Create Warning
 let private cache = new CacheService()
 
 let private cacheServiceToken = new CancellationTokenSource()
