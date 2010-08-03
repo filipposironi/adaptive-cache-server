@@ -31,11 +31,11 @@ type IMemoryPolicy =
     abstract member size: float
 
 type HighMemoryPolicy() =
-    member this.size = (this :> MemoryPolicy).size
-    member this.store = (this :> MemoryPolicy).store
-    member this.remove = (this :> MemoryPolicy).remove
-    member this.search = (this :> MemoryPolicy).search
-    member this.update = (this :> MemoryPolicy).update
+    member this.size = (this :> IMemoryPolicy).size
+    member this.store = (this :> IMemoryPolicy).store
+    member this.remove = (this :> IMemoryPolicy).remove
+    member this.search = (this :> IMemoryPolicy).search
+    member this.update = (this :> IMemoryPolicy).update
 
     override this.ToString() = "Memory context is \"High Availability\""
     
@@ -85,16 +85,16 @@ type HighMemoryPolicy() =
 type LowMemoryPolicy(size) =
     let volatileCacheMaxSize = size
     
-    member this.size = (this :> MemoryPolicy).size
-    member this.store = (this :> MemoryPolicy).store
-    member this.remove = (this :> MemoryPolicy).remove
-    member this.search = (this :> MemoryPolicy).search
-    member this.update = (this :> MemoryPolicy).update
+    member this.size = (this :> IMemoryPolicy).size
+    member this.store = (this :> IMemoryPolicy).store
+    member this.remove = (this :> IMemoryPolicy).remove
+    member this.search = (this :> IMemoryPolicy).search
+    member this.update = (this :> IMemoryPolicy).update
 
     override this.ToString() = "Memory context is \"Low Availability\""
     
     interface IMemoryPolicy with
-        member this.size = float size
+        member this.size = float volatileCacheMaxSize
 
         member this.store key value cache volatileCacheSize =
             if volatileCacheSize + value.Length <= volatileCacheMaxSize then
@@ -172,3 +172,9 @@ type LowMemoryPolicy(size) =
                 loop (Map.toList persistentCache) volatileCache volatileCacheSize
             
             (if float volatileCacheMaxSize > oldVolatileCacheMaxSize then increase else decrease) cache
+
+type FactoryMemoryPolicy() =
+    static member Create ?size =
+        match size with
+        | None -> (new HighMemoryPolicy() :> IMemoryPolicy)
+        | Some size -> (new LowMemoryPolicy(size) :> IMemoryPolicy)

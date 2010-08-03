@@ -63,7 +63,7 @@ type CacheService() =
                 logPolicy.log source log
                 return! loop cache keys volatileCacheSize memoryPolicy logPolicy
             | Log(level) ->
-                let logPolicy = FactoryLogPolicy.create level
+                let logPolicy = FactoryLogPolicy.Create level
                 match level with
                 | Information ->
                     let log = [("Log context changed to \"Information\".", Information)]
@@ -78,7 +78,7 @@ type CacheService() =
             | Config(outbox) ->
                 outbox.Reply [memoryPolicy.ToString(); logPolicy.ToString()]
                 return! loop cache keys volatileCacheSize memoryPolicy logPolicy}
-        loop (new Map<int, bool * int * byte list>([])) [for i in 0 .. (*(Convert.ToInt32 UInt16.MaxValue)*) 1 -> i] 0 (new HighMemoryPolicy()) (FactoryLogPolicy.create Warning))
+        loop (new Map<int, bool * int * byte list>([])) [for i in 0 .. (Convert.ToInt32 UInt16.MaxValue) -> i] 0 (FactoryMemoryPolicy.Create()) (FactoryLogPolicy.Create Warning))
 
     member this.store value = messageService.PostAndTryAsyncReply((fun inbox -> Store(value, inbox)), timeout)
     member this.remove key = messageService.Post(Remove(key))
