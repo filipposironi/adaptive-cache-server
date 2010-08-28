@@ -45,8 +45,8 @@ let private cacheService = async {
             let ASCII = new ASCIIEncoding()
             let command = reader.ReadLine()
             match command with
-            | ParseRegex "^(store:)(\s+)(.+)$" (head :: tail) ->
-                let request = async {return! cache.store (List.ofArray (ASCII.GetBytes(head)))}
+            | ParseRegex "^(store:)(\s+)(.+)$" (value :: _) ->
+                let request = async {return! cache.store (List.ofArray (ASCII.GetBytes(value)))}
                 match Async.RunSynchronously(request) with
                 | None ->
                     writer.WriteLine("error: ")
@@ -54,10 +54,10 @@ let private cacheService = async {
                 | Some key ->
                     writer.WriteLine("key: " + key.ToString())
                     writer.Flush()
-            | ParseRegex "^(remove:)(\s+)(\d+)$" (head :: tail) ->
-                cache.remove (Int32.Parse(head))
-            | ParseRegex "^(search:)(\s+)(\d+)$" (head :: tail) ->
-                let request = async {return! cache.search (Int32.Parse(head))}
+            | ParseRegex "^(remove:)(\s+)(\d+)$" (key :: _) ->
+                cache.remove (Int32.Parse(key))
+            | ParseRegex "^(search:)(\s+)(\d+)$" (key :: _) ->
+                let request = async {return! cache.search (Int32.Parse(key))}
                 match Async.RunSynchronously(request) with
                 | None ->
                     writer.WriteLine("error: ")
@@ -79,16 +79,18 @@ while running do
     let source = "AdaptiveServerAdminConsole"
     let command = Console.ReadLine()
     match command with
-    | ParseRegex "^(memory high)$" _ ->
+    | ParseRegex "^(memory:)(\s+)(high)$" _ ->
         cache.high
-    | ParseRegex "^(memory low)(\s+)(\d+)$" (size :: tail) ->
+    | ParseRegex "^(memory:)(\s+)(low)(\s+)(\d+)$" (size :: _) ->
         cache.low (Int32.Parse(size))
-    | ParseRegex "^(log)(\s+)(information|warning|error)" (level :: tail) ->
+    | ParseRegex "^(log:)(\s+)(information|warning|error)" (level :: _) ->
         match level with
         | "information" -> cache.log Information
         | "warning" -> cache.log Warning
         | "error" -> cache.log Error
         | _ -> ()
+    | ParseRegex "^(protocol:)(\s+)(.+)$" (file :: _) ->
+        ()
     | ParseRegex "^(config)$" _ ->
         for config in cache.config do
             Console.WriteLine(config)

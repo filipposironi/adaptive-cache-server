@@ -15,65 +15,52 @@
 module Client
 
 open System
+open System.Configuration
 open System.IO
-open System.Net
 open System.Net.Sockets
-open System.Text
 
 open Helpers
 
-let private address = "127.0.0.1"
-let private port = 1234
+let private address = ConfigurationManager.AppSettings.Item("IP-Address")
+let private port = Int32.Parse(ConfigurationManager.AppSettings.Item("TCP-Port"))
 
-let store words =
-    let rec loop words (keys: int list) =
-        match words with
-        | [] -> keys
-        | (head :: tail) ->
-            use client = new TcpClient(address, port)
-            use reader = new StreamReader(client.GetStream())
-            use writer = new StreamWriter(client.GetStream())
-            writer.WriteLine("store: " + head)
-            writer.Flush()
-            match reader.ReadLine() with
-            | ParseRegex "^(key:)(\s+)(\d+)$" (key :: _) ->
-                let keys = keys @ [Int32.Parse(key)]
-                loop tail keys
-            | ParseRegex "^(error:)(\s+)(.+)" (error :: _) ->
-                Console.WriteLine(error)
-                loop tail keys
-            | _ ->
-                loop tail keys
-    loop words []
-
-let keys = store ["pera"; "mela"; "fragola"; "banana"; "albicocca"]
-for k in keys do
-    Console.WriteLine(k)
-
-let search keys =
-    let rec loop keys (values: string list) =
-        match keys with
-        | [] -> values
-        | (head :: tail) ->
-            use client = new TcpClient(address, port)
-            use reader = new StreamReader(client.GetStream())
-            use writer = new StreamWriter(client.GetStream())
-            writer.WriteLine("search: " + head.ToString())
-            writer.Flush()
-            match reader.ReadLine() with
-            | ParseRegex "^(value:)(\s+)(.+)$" (value :: _) ->
-                let values = values @ [value]
-                loop tail values
-            | ParseRegex "^(error:)(\s+)(.+)$" (error :: _) ->
-                Console.WriteLine(error)
-                loop tail values
-            | _ ->
-                loop tail values
-
-    loop keys []
-
-let values = search keys
-for v in values do
-    Console.WriteLine(v)
-
-Console.ReadKey() |> ignore
+let mutable running = true
+while running do
+    let command = Console.ReadLine()
+    match command with
+    | ParseRegex "^(store:)(\s+)(.+)$" (value :: _) ->
+        use client = new TcpClient(address, port)
+        use reader = new StreamReader(client.GetStream())
+        use writer = new StreamWriter(client.GetStream())
+        writer.WriteLine("store: " + value)
+        writer.Flush()
+        match reader.ReadLine() with
+        | ParseRegex "^(key:)(\s+)(\d+)$" (key :: _) ->
+            Console.WriteLine("key: " + key)
+        | ParseRegex "^(error:)(\s+)(.+)" (error :: _) ->
+            Console.WriteLine(error)
+        | _ -> ()
+    | ParseRegex "^(remove:)(\s+)(\d+)$" (key :: _) ->
+        use client = new TcpClient(address, port)
+        use reader = new StreamReader(client.GetStream())
+        use writer = new StreamWriter(client.GetStream())
+        writer.WriteLine("remove: " + key)
+        writer.Flush()
+    | ParseRegex "^(search:)(\s+)(\d+)$" (key :: _) ->
+        use client = new TcpClient(address, port)
+        use reader = new StreamReader(client.GetStream())
+        use writer = new StreamWriter(client.GetStream())
+        writer.WriteLine("search: " + key)
+        writer.Flush()
+        match reader.ReadLine() with
+        | ParseRegex "^(value:)(\s+)(.+)$" (value :: _) ->
+            Console.WriteLine("value: " + value)
+        | ParseRegex "^(error:)(\s+)(.+)$" (error :: _) ->
+            Console.WriteLine(error)
+        | _ -> ()
+    | ParseRegex "^(protocol:)(\s+)(.+)$" (file :: _) ->
+        ()
+    | ParseRegex "^(quit)$" _ ->
+        running <- false
+    | _ ->
+        Console.WriteLine("Command \"" + command + "\" not supported.")
