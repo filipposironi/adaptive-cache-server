@@ -15,6 +15,7 @@
 module Server
 
 open System
+open System.Configuration
 open System.Diagnostics
 open System.IO
 open System.Net
@@ -28,13 +29,13 @@ open MemoryPolicies
 open CacheService
 
 let mutable logPolicy = FactoryLogPolicy.Create Warning
-let private cache = new CacheService()
 
+let private cache = new CacheService()
 let private cacheServiceToken = new CancellationTokenSource()
 let private cacheService = async {
-    let source = "AdaptiveServer"
-    let address = "127.0.0.1"
-    let port = 1234
+    let source = ConfigurationManager.AppSettings.Item("Server-Log")
+    let address = ConfigurationManager.AppSettings.Item("IP-Address")
+    let port = Int32.Parse(ConfigurationManager.AppSettings.Item("TCP-Port"))
     let listener = new TcpListener(IPAddress.Parse(address), port)
     listener.Start(10)
     while not cacheServiceToken.IsCancellationRequested do
@@ -76,7 +77,7 @@ Async.Start(cacheService, cacheServiceToken.Token)
 
 let mutable running = true
 while running do
-    let source = "AdaptiveServerAdminConsole"
+    let source = ConfigurationManager.AppSettings.Item("Console-Log")
     let command = Console.ReadLine()
     match command with
     | ParseRegex "^(memory:)(\s+)(high)$" _ ->
