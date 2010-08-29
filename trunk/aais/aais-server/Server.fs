@@ -90,7 +90,7 @@ while running do
         | "warning" -> cache.log Warning
         | "error" -> cache.log Error
         | _ -> ()
-    | ParseRegex "^(protocol:)(\s+)(.+)$" (file :: _) ->
+    | ParseRegex "^(protocol:)(\s+)(.+)$" (id :: _) ->
         ()
     | ParseRegex "^(config)$" _ ->
         for config in cache.config do

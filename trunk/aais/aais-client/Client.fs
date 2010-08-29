@@ -58,7 +58,7 @@ while running do
         | ParseRegex "^(error:)(\s+)(.+)$" (error :: _) ->
             Console.WriteLine(error)
         | _ -> ()
-    | ParseRegex "^(protocol:)(\s+)(.+)$" (file :: _) ->
+    | ParseRegex "^(protocol:)(\s+)(.+)$" (id :: _) ->
         ()
     | ParseRegex "^(quit)$" _ ->
         running <- false
