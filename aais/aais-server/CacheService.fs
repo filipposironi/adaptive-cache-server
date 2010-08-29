@@ -15,6 +15,7 @@
 module CacheService
 
 open System
+open System.Configuration
 open System.IO
 
 open Helpers
@@ -30,7 +31,7 @@ type private Message = Store of byte list * AsyncReplyChannel<int>
                      | Config of AsyncReplyChannel<string list>
 
 type CacheService() =
-    let source = "AdaptiveCacheService"
+    let source = ConfigurationManager.AppSettings.Item("Cache-Log")
     let timeout = 1000
     let messageService = MailboxProcessor.Start(fun inbox ->
         let rec loop cache keys volatileCacheSize (memoryPolicy: IMemoryPolicy) (logPolicy: ILogPolicy) = async {
@@ -52,14 +53,15 @@ type CacheService() =
                 logPolicy.log source log
                 return! loop cache (key :: keys) volatileCacheSize memoryPolicy logPolicy
             | Search(key, outbox) ->
-                match memoryPolicy.search key cache with
-                | ([], log) ->
-                    logPolicy.log source log
-                    return! loop cache keys volatileCacheSize memoryPolicy logPolicy
-                | (value, log) ->
-                    logPolicy.log source log
-                    outbox.Reply value
-                    return! loop cache keys volatileCacheSize memoryPolicy logPolicy
+                let request cache key (memoryPolicy: IMemoryPolicy) (logPolicy: ILogPolicy) (outbox: AsyncReplyChannel<byte list>) = async {
+                    match memoryPolicy.search key cache with
+                    | ([], log) ->
+                        logPolicy.log source log
+                    | (value, log) ->
+                        logPolicy.log source log
+                        outbox.Reply value}
+                Async.Start(request cache key memoryPolicy logPolicy outbox)
+                return! loop cache keys volatileCacheSize memoryPolicy logPolicy
             | LowMemory(volatileCacheMaxSize) ->
                 let oldVolatileCacheMaxSize = memoryPolicy.size
                 let memoryPolicy = new LowMemoryPolicy(volatileCacheMaxSize)
