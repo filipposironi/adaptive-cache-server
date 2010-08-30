@@ -20,17 +20,15 @@ open System.Diagnostics
 open System.IO
 open System.Net
 open System.Net.Sockets
+open System.Reflection
 open System.Text
 open System.Threading
 open System.Xml
 open System.Xml.Linq
 
 open Helpers
-open LogPolicies
 open MemoryPolicies
 open CacheService
-
-let mutable logPolicy = FactoryLogPolicy.Create Warning
 
 let mutable storeRegEx = "^(store:)(\s+)(.+)$"
 let mutable removeRegEx = "^(remove:)(\s+)(\d+)$"
@@ -41,6 +39,12 @@ let mutable errorCommand = "error: "
 
 let private serverEventLog = ConfigurationManager.AppSettings.Item("Server-Log")
 let private consoleEventLog = ConfigurationManager.AppSettings.Item("Console-Log")
+
+let assembly = Assembly.LoadFrom(ConfigurationManager.AppSettings.Item("Server-Log-DLL"))
+let container = assembly.GetType("Log")
+let f = container.GetMethod("log")
+let log source messages =
+    f.Invoke(null, [|source; messages|]) |> ignore
 
 let private cache = new CacheService()
 let private cacheServiceToken = new CancellationTokenSource()
@@ -56,7 +60,7 @@ let private cacheService = async {
         valueCommand <- newValueCommand
         errorCommand <- newErrorCommand
     | ProtocolError(message) ->
-        logPolicy.log serverEventLog [(message, Error)]
+        log serverEventLog [(message, EventLogEntryType.Error)]
     let listener = new TcpListener(IPAddress.Parse(address), port)
     listener.Start(10)
     while not cacheServiceToken.IsCancellationRequested do
@@ -88,10 +92,9 @@ let private cacheService = async {
                     writer.WriteLine(valueCommand + ASCII.GetString(List.toArray value))
                     writer.Flush()
             | _ ->
-                let log = [("Command \"" + command + "\" not supported.", Warning)]
-                writer.WriteLine(errorCommand + fst (List.head log))
+                writer.WriteLine(errorCommand + "Command \"" + command + "\" not supported.")
                 writer.Flush()
-                logPolicy.log serverEventLog log
+                log serverEventLog [("Command \"" + command + "\" not supported.", EventLogEntryType.Warning)]
             reader.Close()
             writer.Close()
             socket.Close()}
@@ -109,9 +112,9 @@ while running do
         cache.low (Int32.Parse(size))
     | ParseRegEx "^(log:)(\s+)(information|warning|error)" (level :: _) ->
         match level with
-        | "information" -> cache.log Information
-        | "warning" -> cache.log Warning
-        | "error" -> cache.log Error
+        | "information" -> cache.log EventLogEntryType.Information
+        | "warning" -> cache.log EventLogEntryType.Warning
+        | "error" -> cache.log EventLogEntryType.Error
         | _ -> ()
     | ParseRegEx "^(show:)(\s+)(console|server)(\s+)(\d+)$" (n :: source :: _) ->
         match source with
@@ -134,7 +137,7 @@ while running do
             valueCommand <- newValueCommand
             errorCommand <- newErrorCommand
         | ProtocolError(message) ->
-            logPolicy.log consoleEventLog [(message, Error)]
+            log consoleEventLog [(message, EventLogEntryType.Error)]
     | ParseRegEx "^(config)$" _ ->
         for config in cache.config do
             Console.WriteLine(config)
@@ -142,5 +145,4 @@ while running do
         cacheServiceToken.Cancel()
         running <- false
     | _ ->
-        let log = [("Command \"" + command + "\" not found.", Warning)]
-        logPolicy.log consoleEventLog log
+        log consoleEventLog [("Command \"" + command + "\" not found.", EventLogEntryType.Warning)]

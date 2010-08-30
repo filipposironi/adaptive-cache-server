@@ -15,12 +15,12 @@
 module MemoryPolicies
 
 open System.Collections.Generic
+open System.Diagnostics
 open System.IO
 open System.Runtime.Serialization
 open System.Runtime.Serialization.Formatters.Binary
 
 open Helpers
-open LogPolicies
 
 let serializeCacheLine key value =
     use file = new FileStream(key.ToString() + ".dat", FileMode.Create)
@@ -39,28 +39,28 @@ let deserializeCacheLine key =
 type MemoryPolicy() =
     abstract member size: float
     
-    abstract member serialize: int * byte list * int -> (int * bool * byte list * int * int * (string * LogLevel) list)
-    abstract member store: Map<int, (bool * int * byte list)> -> int * bool * byte list * int * int * (string * LogLevel) list -> (Map<int, (bool * int * byte list)> * int * (string * LogLevel) list)
+    abstract member serialize: int * byte list * int -> (int * bool * byte list * int * int * (string * EventLogEntryType) list)
+    abstract member store: Map<int, (bool * int * byte list)> -> int * bool * byte list * int * int * (string * EventLogEntryType) list -> (Map<int, (bool * int * byte list)> * int * (string * EventLogEntryType) list)
     default this.store cache (key, isVolatile, value, length, volatileCacheSize, log) =
         let cache = Map.add key (isVolatile, length, value) cache
-        let log = log @ [("Key \"" + key.ToString() + "\" stored.", Information)]
+        let log = log @ [("Key \"" + key.ToString() + "\" stored.", EventLogEntryType.Information)]
         (cache, volatileCacheSize, log)
     
-    abstract member deserialize: int * Map<int, (bool * int * byte list)> -> (int * Map<int, (bool * int * byte list)> * (string * LogLevel) list)
-    abstract member remove: int -> int * Map<int, (bool * int * byte list)> * (string * LogLevel) list -> (Map<int, (bool * int * byte list)> * int * (string * LogLevel) list)
+    abstract member deserialize: int * Map<int, (bool * int * byte list)> -> (int * Map<int, (bool * int * byte list)> * (string * EventLogEntryType) list)
+    abstract member remove: int -> int * Map<int, (bool * int * byte list)> * (string * EventLogEntryType) list -> (Map<int, (bool * int * byte list)> * int * (string * EventLogEntryType) list)
     default this.remove volatileCacheSize (key, cache, log) =
         try
             let (_, _, value) = Map.find key cache
             let cache = Map.remove key cache
             let volatileCacheSize = volatileCacheSize - value.Length
-            let log = log @ [("Key \"" + key.ToString() + "\" removed.", Information)]
+            let log = log @ [("Key \"" + key.ToString() + "\" removed.", EventLogEntryType.Information)]
             (cache, volatileCacheSize, log)
         with
         | :? KeyNotFoundException ->
-            let log = [("Key \"" + key.ToString() + "\" not found.", Warning)]
+            let log = [("Key \"" + key.ToString() + "\" not found.", EventLogEntryType.Warning)]
             (cache, volatileCacheSize, log)
     
-    abstract member search: int -> Map<int, (bool * int * byte list)> -> (byte list * ((string * LogLevel) list))
+    abstract member search: int -> Map<int, (bool * int * byte list)> -> (byte list * ((string * EventLogEntryType) list))
     abstract member update: Map<int, (bool * int * byte list)> -> int -> float -> (Map<int, (bool * int * byte list)> * int)
 
 type HighMemoryPolicy() =
@@ -79,11 +79,11 @@ type HighMemoryPolicy() =
     override this.search key cache =
         try
             let (_, _, value) = Map.find key cache
-            let log = [("Key \"" + key.ToString() + "\" retrieved.", Information)]
+            let log = [("Key \"" + key.ToString() + "\" retrieved.", EventLogEntryType.Information)]
             (value, log)
         with
         | :? KeyNotFoundException ->
-            let log = [("Key \"" + key.ToString() + "\" not found.", Error)]
+            let log = [("Key \"" + key.ToString() + "\" not found.", EventLogEntryType.Error)]
             ([], log)
 
     override this.update cache volatileCacheSize oldVolatileCacheMaxSize =
@@ -110,7 +110,7 @@ type LowMemoryPolicy(size) =
     override this.serialize (key, value, volatileCacheSize) =
         if volatileCacheSize + value.Length > volatileCacheMaxSize then
             serializeCacheLine key (box value)
-            (key, false, [], value.Length, volatileCacheSize, [("Key \"" + key.ToString() + "\" serialized.", Information)])
+            (key, false, [], value.Length, volatileCacheSize, [("Key \"" + key.ToString() + "\" serialized.", EventLogEntryType.Information)])
         else
             (key, true, value, value.Length, volatileCacheSize + value.Length, [])
 
@@ -119,7 +119,7 @@ type LowMemoryPolicy(size) =
             match Map.find key cache with
             | (false, _, _) ->
                 File.Delete(key.ToString() + ".dat")
-                (key, cache, [("Key \"" + key.ToString() + "\" deserialized.", Information)])
+                (key, cache, [("Key \"" + key.ToString() + "\" deserialized.", EventLogEntryType.Information)])
             | _ ->
                 (key, cache, [])
         with
@@ -131,14 +131,14 @@ type LowMemoryPolicy(size) =
             match Map.find key cache with
             | (false, _, _) ->
                 let value = unbox<byte list> (deserializeCacheLine key)
-                let log = [("Key \"" + key.ToString() + "\" deserialized and retrieved.", Information)]
+                let log = [("Key \"" + key.ToString() + "\" deserialized and retrieved.", EventLogEntryType.Information)]
                 (value, log)
             | (true, _, value) ->
-                let log = [("Key \"" + key.ToString() + "\" retrieved.", Information)]
+                let log = [("Key \"" + key.ToString() + "\" retrieved.", EventLogEntryType.Information)]
                 (value, log)
         with
         | :? KeyNotFoundException ->
-            let log = [("Key \"" + key.ToString() + "\" not found.", Error)]
+            let log = [("Key \"" + key.ToString() + "\" not found.", EventLogEntryType.Error)]
             ([], log)
         
     override this.update cache volatileCacheSize oldVolatileCacheMaxSize =

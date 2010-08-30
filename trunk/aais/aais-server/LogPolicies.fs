@@ -17,8 +17,6 @@ module LogPolicies
 open System
 open System.Diagnostics
 
-open Helpers
-
 type LogLevel = Information
               | Warning
               | Error

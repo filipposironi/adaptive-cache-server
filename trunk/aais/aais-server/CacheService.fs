@@ -16,10 +16,11 @@ module CacheService
 
 open System
 open System.Configuration
+open System.Diagnostics
 open System.IO
+open System.Reflection
 
 open Helpers
-open LogPolicies
 open MemoryPolicies
 
 type private Message = Store of byte list * AsyncReplyChannel<int>
@@ -27,72 +28,82 @@ type private Message = Store of byte list * AsyncReplyChannel<int>
                      | Search of int * AsyncReplyChannel<byte list>
                      | LowMemory of int
                      | HighMemory
-                     | Log of LogLevel
+                     | Log of EventLogEntryType
                      | Config of AsyncReplyChannel<string list>
 
 type CacheService() =
     let source = ConfigurationManager.AppSettings.Item("Cache-Log")
     let timeout = 1000
     let messageService = MailboxProcessor.Start(fun inbox ->
-        let rec loop cache keys volatileCacheSize (memoryPolicy: MemoryPolicy) (logPolicy: ILogPolicy) = async {
+        let rec loop cache keys volatileCacheSize (memoryPolicy: MemoryPolicy) logger = async {
             let! message = inbox.Receive()
             match message with
             | Store(value, outbox) ->
                 match keys with
                 | [] ->
-                    let log = [("Key not available.", Warning)]
-                    logPolicy.log source log
-                    return! loop cache keys volatileCacheSize memoryPolicy logPolicy
+                    let log = [("Key not available.", EventLogEntryType.Warning)]
+                    logger source log
+                    return! loop cache keys volatileCacheSize memoryPolicy logger
                 | key :: keys ->
                     let (cache, volatileCacheSize, log) = (memoryPolicy.serialize >> memoryPolicy.store cache) (key, value, volatileCacheSize)
-                    logPolicy.log source log
+                    logger source log
                     outbox.Reply key
-                    return! loop cache keys volatileCacheSize memoryPolicy logPolicy
+                    return! loop cache keys volatileCacheSize memoryPolicy logger
             | Remove(key) ->
                 let (cache, volatileCacheSize, log) = (memoryPolicy.deserialize >> memoryPolicy.remove volatileCacheSize) (key, cache)
-                logPolicy.log source log
-                return! loop cache (key :: keys) volatileCacheSize memoryPolicy logPolicy
+                logger source log
+                return! loop cache (key :: keys) volatileCacheSize memoryPolicy logger
             | Search(key, outbox) ->
-                let request cache key (memoryPolicy: MemoryPolicy) (logPolicy: ILogPolicy) (outbox: AsyncReplyChannel<byte list>) = async {
+                let request cache key (memoryPolicy: MemoryPolicy) logger (outbox: AsyncReplyChannel<byte list>) = async {
                     match memoryPolicy.search key cache with
                     | ([], log) ->
-                        logPolicy.log source log
+                        logger source log
                     | (value, log) ->
-                        logPolicy.log source log
+                        logger source log
                         outbox.Reply value}
-                Async.Start(request cache key memoryPolicy logPolicy outbox)
-                return! loop cache keys volatileCacheSize memoryPolicy logPolicy
+                Async.Start(request cache key memoryPolicy logger outbox)
+                return! loop cache keys volatileCacheSize memoryPolicy logger
             | LowMemory(volatileCacheMaxSize) ->
                 let oldVolatileCacheMaxSize = memoryPolicy.size
                 let memoryPolicy = new LowMemoryPolicy(volatileCacheMaxSize)
                 let (cache, volatileCacheSize) = memoryPolicy.update cache volatileCacheSize oldVolatileCacheMaxSize
-                let log = [("Memory context changed to \"Low Availability\".", Information); ("Memory bound set to \"" + volatileCacheMaxSize.ToString() + "\".", Information)]
-                logPolicy.log source log
-                return! loop cache keys volatileCacheSize memoryPolicy logPolicy
+                let log = [("Memory context changed to \"Low Availability\".", EventLogEntryType.Information); ("Memory bound set to \"" + volatileCacheMaxSize.ToString() + "\".", EventLogEntryType.Information)]
+                logger source log
+                return! loop cache keys volatileCacheSize memoryPolicy logger
             | HighMemory ->
                 let oldVolatileCacheMaxSize = memoryPolicy.size
                 let memoryPolicy = new HighMemoryPolicy()
                 let (cache, volatileCacheSize) = memoryPolicy.update cache volatileCacheSize oldVolatileCacheMaxSize
-                let log = [("Memory context changed to \"High Availability\".", Information)]
-                logPolicy.log source log
-                return! loop cache keys volatileCacheSize memoryPolicy logPolicy
+                let log = [("Memory context changed to \"High Availability\".", EventLogEntryType.Information)]
+                logger source log
+                return! loop cache keys volatileCacheSize memoryPolicy logger
             | Log(level) ->
-                let logPolicy = FactoryLogPolicy.Create level
                 match level with
-                | Information ->
-                    let log = [("Log context changed to \"Information\".", Information)]
-                    logPolicy.log source log
-                | Warning ->
-                    let log = [("Log context changed to \"Warning\".", Information)]
-                    logPolicy.log source log
-                | Error ->
-                    let log = [("Log context changed to \"Error\".", Information)]
-                    logPolicy.log source log
-                return! loop cache keys volatileCacheSize memoryPolicy logPolicy
+                | EventLogEntryType.Information ->
+                    let logger source messages =
+                        Assembly.LoadFrom("information.dll").GetType("Log").GetMethod("log").Invoke(null, [|source; messages|]) |> ignore
+                    let log = [("Log context changed to \"Information\".", EventLogEntryType.Information)]
+                    logger source log
+                    return! loop cache keys volatileCacheSize memoryPolicy logger
+                | EventLogEntryType.Warning ->
+                    let logger source messages =
+                        Assembly.LoadFrom("warning.dll").GetType("Log").GetMethod("log").Invoke(null, [|source; messages|]) |> ignore
+                    let log = [("Log context changed to \"Warning\".", EventLogEntryType.Information)]
+                    logger source log
+                    return! loop cache keys volatileCacheSize memoryPolicy logger
+                | EventLogEntryType.Error ->
+                    let logger source messages =
+                        Assembly.LoadFrom("error.dll").GetType("Log").GetMethod("log").Invoke(null, [|source; messages|]) |> ignore
+                    let log = [("Log context changed to \"Error\".", EventLogEntryType.Information)]
+                    logger source log
+                    return! loop cache keys volatileCacheSize memoryPolicy logger
+                | _ -> ()
             | Config(outbox) ->
-                outbox.Reply [memoryPolicy.ToString(); logPolicy.ToString()]
-                return! loop cache keys volatileCacheSize memoryPolicy logPolicy}
-        loop (new Map<int, bool * int * byte list>([])) [for i in 0 .. (Convert.ToInt32 UInt16.MaxValue) -> i] 0 (FactoryMemoryPolicy.Create()) (FactoryLogPolicy.Create Warning))
+                outbox.Reply [memoryPolicy.ToString(); ""]
+                return! loop cache keys volatileCacheSize memoryPolicy logger}
+        let logger source messages =
+            Assembly.LoadFrom("warning.dll").GetType("Log").GetMethod("log").Invoke(null, [|source; messages|]) |> ignore
+        loop (new Map<int, bool * int * byte list>([])) [for i in 0 .. (Convert.ToInt32 UInt16.MaxValue) -> i] 0 (FactoryMemoryPolicy.Create()) logger)
 
     member this.store value = messageService.PostAndTryAsyncReply((fun inbox -> Store(value, inbox)), timeout)
     member this.remove key = messageService.Post(Remove(key))
