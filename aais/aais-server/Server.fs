@@ -39,10 +39,12 @@ let mutable keyCommand = "key: "
 let mutable valueCommand = "value: "
 let mutable errorCommand = "error: "
 
+let private serverEventLog = ConfigurationManager.AppSettings.Item("Server-Log")
+let private consoleEventLog = ConfigurationManager.AppSettings.Item("Console-Log")
+
 let private cache = new CacheService()
 let private cacheServiceToken = new CancellationTokenSource()
 let private cacheService = async {
-    let source = ConfigurationManager.AppSettings.Item("Server-Log")
     let address = ConfigurationManager.AppSettings.Item("IP-Address")
     let port = Int32.Parse(ConfigurationManager.AppSettings.Item("TCP-Port"))
     match readProtocol (ConfigurationManager.AppSettings.Item("Default-Protocol")) with
@@ -54,7 +56,7 @@ let private cacheService = async {
         valueCommand <- newValueCommand
         errorCommand <- newErrorCommand
     | ProtocolError(message) ->
-        logPolicy.log source [(message, Error)]
+        logPolicy.log serverEventLog [(message, Error)]
     let listener = new TcpListener(IPAddress.Parse(address), port)
     listener.Start(10)
     while not cacheServiceToken.IsCancellationRequested do
@@ -89,14 +91,12 @@ let private cacheService = async {
                 let log = [("Command \"" + command + "\" not supported.", Warning)]
                 writer.WriteLine(errorCommand + fst (List.head log))
                 writer.Flush()
-                logPolicy.log source log
+                logPolicy.log serverEventLog log
             reader.Close()
             writer.Close()
             socket.Close()}
         Async.Start(loop socket)}
 Async.Start(cacheService, cacheServiceToken.Token)
-
-let sourceConsole = ConfigurationManager.AppSettings.Item("Console-Log")
 
 let mutable running = true
 while running do
@@ -113,6 +113,17 @@ while running do
         | "warning" -> cache.log Warning
         | "error" -> cache.log Error
         | _ -> ()
+    | ParseRegEx "^(show:)(\s+)(console|server)(\s+)(\d+)$" (n :: source :: _) ->
+        match source with
+        | "console" ->
+            let entries = getLastLogEntries consoleEventLog (Int32.Parse(n))
+            for e in entries do
+                Console.WriteLine(e.Message)
+        | "server" ->
+            let entries = getLastLogEntries serverEventLog (Int32.Parse(n))
+            for e in entries do
+                Console.WriteLine(e.Message)
+        | _ -> ()
     | ParseRegEx "^(protocol:)(\s+)(.+)$" (id :: _) ->
         match readProtocol id with
         | Protocol(newStoreRegEx, newRemoveRegEx, newSearchRegEx, newKeyCommand, newValueCommand, newErrorCommand) ->
@@ -123,7 +134,7 @@ while running do
             valueCommand <- newValueCommand
             errorCommand <- newErrorCommand
         | ProtocolError(message) ->
-            logPolicy.log sourceConsole [(message, Error)]
+            logPolicy.log consoleEventLog [(message, Error)]
     | ParseRegEx "^(config)$" _ ->
         for config in cache.config do
             Console.WriteLine(config)
@@ -132,4 +143,4 @@ while running do
         running <- false
     | _ ->
         let log = [("Command \"" + command + "\" not found.", Warning)]
-        logPolicy.log sourceConsole log
+        logPolicy.log consoleEventLog log
