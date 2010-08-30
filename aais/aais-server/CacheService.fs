@@ -34,7 +34,7 @@ type CacheService() =
     let source = ConfigurationManager.AppSettings.Item("Cache-Log")
     let timeout = 1000
     let messageService = MailboxProcessor.Start(fun inbox ->
-        let rec loop cache keys volatileCacheSize (memoryPolicy: IMemoryPolicy) (logPolicy: ILogPolicy) = async {
+        let rec loop cache keys volatileCacheSize (memoryPolicy: MemoryPolicy) (logPolicy: ILogPolicy) = async {
             let! message = inbox.Receive()
             match message with
             | Store(value, outbox) ->
@@ -44,16 +44,16 @@ type CacheService() =
                     logPolicy.log source log
                     return! loop cache keys volatileCacheSize memoryPolicy logPolicy
                 | key :: keys ->
-                    let (cache, volatileCacheSize, log) = memoryPolicy.store key value cache volatileCacheSize
+                    let (cache, volatileCacheSize, log) = (memoryPolicy.serialize >> memoryPolicy.store cache) (key, value, volatileCacheSize)
                     logPolicy.log source log
                     outbox.Reply key
                     return! loop cache keys volatileCacheSize memoryPolicy logPolicy
             | Remove(key) ->
-                let (cache, volatileCacheSize, log) = memoryPolicy.remove key cache volatileCacheSize
+                let (cache, volatileCacheSize, log) = (memoryPolicy.deserialize >> memoryPolicy.remove volatileCacheSize) (key, cache)
                 logPolicy.log source log
                 return! loop cache (key :: keys) volatileCacheSize memoryPolicy logPolicy
             | Search(key, outbox) ->
-                let request cache key (memoryPolicy: IMemoryPolicy) (logPolicy: ILogPolicy) (outbox: AsyncReplyChannel<byte list>) = async {
+                let request cache key (memoryPolicy: MemoryPolicy) (logPolicy: ILogPolicy) (outbox: AsyncReplyChannel<byte list>) = async {
                     match memoryPolicy.search key cache with
                     | ([], log) ->
                         logPolicy.log source log
