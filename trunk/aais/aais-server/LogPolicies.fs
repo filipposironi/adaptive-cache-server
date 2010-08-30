@@ -35,7 +35,6 @@ let writeLogEntry source message level =
     | Error ->
         EventLog.WriteEntry(source, message, EventLogEntryType.Error)
 
-
 type ILogPolicy =
     abstract log: string -> (string * LogLevel) list -> unit
 

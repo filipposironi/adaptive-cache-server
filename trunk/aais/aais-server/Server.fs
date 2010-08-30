@@ -71,7 +71,7 @@ let private cacheService = async {
                 let request = async {return! cache.store (List.ofArray (ASCII.GetBytes(value)))}
                 match Async.RunSynchronously(request) with
                 | None ->
-                    writer.WriteLine(errorCommand)
+                    writer.WriteLine(errorCommand + "value not stored.")
                     writer.Flush()
                 | Some key ->
                     writer.WriteLine(keyCommand + key.ToString())
@@ -82,7 +82,7 @@ let private cacheService = async {
                 let request = async {return! cache.search (Int32.Parse(key))}
                 match Async.RunSynchronously(request) with
                 | None ->
-                    writer.WriteLine(errorCommand)
+                    writer.WriteLine(errorCommand + "key not found.")
                     writer.Flush()
                 | Some value ->
                     writer.WriteLine(valueCommand + ASCII.GetString(List.toArray value))
