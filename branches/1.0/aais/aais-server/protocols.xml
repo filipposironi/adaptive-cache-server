@@ -1,0 +1,19 @@
+﻿<?xml version="1.0" encoding="utf-8" ?>
+<protocols>
+  <protocol id="0">
+    <store command="store: ">^(store:)(\s+)(.+)$</store>
+    <remove command="remove: ">^(remove:)(\s+)(\d+)$</remove>
+    <search command="search: ">^(search:)(\s+)(\d+)$</search>
+    <key command="key: ">^(key:)(\s+)(\d+)$</key>
+    <value command="value: ">^(value:)(\s+)(.+)$</value>
+    <error command="error: ">^(error:)(\s+)(.+)</error>
+  </protocol>
+  <protocol id="1">
+    <store command="store ">^(store)(\s+)(.+)$</store>
+    <remove command="remove ">^(remove)(\s+)(\d+)$</remove>
+    <search command="search ">^(search)(\s+)(\d+)$</search>
+    <key command="key ">^(key)(\s+)(\d+)$</key>
+    <value command="value ">^(value)(\s+)(.+)$</value>
+    <error command="error ">^(error)(\s+)(.+)</error>
+  </protocol>
+</protocols>
