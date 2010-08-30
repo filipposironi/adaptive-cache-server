@@ -22,6 +22,8 @@ open System.Net
 open System.Net.Sockets
 open System.Text
 open System.Threading
+open System.Xml
+open System.Xml.Linq
 
 open Helpers
 open LogPolicies
@@ -30,12 +32,29 @@ open CacheService
 
 let mutable logPolicy = FactoryLogPolicy.Create Warning
 
+let mutable storeRegEx = "^(store:)(\s+)(.+)$"
+let mutable removeRegEx = "^(remove:)(\s+)(\d+)$"
+let mutable searchRegEx = "^(search:)(\s+)(\d+)$"
+let mutable keyCommand = "key: "
+let mutable valueCommand = "value: "
+let mutable errorCommand = "error: "
+
 let private cache = new CacheService()
 let private cacheServiceToken = new CancellationTokenSource()
 let private cacheService = async {
     let source = ConfigurationManager.AppSettings.Item("Server-Log")
     let address = ConfigurationManager.AppSettings.Item("IP-Address")
     let port = Int32.Parse(ConfigurationManager.AppSettings.Item("TCP-Port"))
+    match readProtocol (ConfigurationManager.AppSettings.Item("Default-Protocol")) with
+    | Protocol(newStoreRegEx, newRemoveRegEx, newSearchRegEx, newKeyCommand, newValueCommand, newErrorCommand) ->
+        storeRegEx <- newStoreRegEx
+        removeRegEx <- newRemoveRegEx
+        searchRegEx <- newSearchRegEx
+        keyCommand <- newKeyCommand
+        valueCommand <- newValueCommand
+        errorCommand <- newErrorCommand
+    | ProtocolError(message) ->
+        logPolicy.log source [(message, Error)]
     let listener = new TcpListener(IPAddress.Parse(address), port)
     listener.Start(10)
     while not cacheServiceToken.IsCancellationRequested do
@@ -46,28 +65,30 @@ let private cacheService = async {
             let ASCII = new ASCIIEncoding()
             let command = reader.ReadLine()
             match command with
-            | ParseRegex "^(store:)(\s+)(.+)$" (value :: _) ->
+            | ParseRegEx storeRegEx (value :: _) ->
                 let request = async {return! cache.store (List.ofArray (ASCII.GetBytes(value)))}
                 match Async.RunSynchronously(request) with
                 | None ->
-                    writer.WriteLine("error: ")
+                    writer.WriteLine(errorCommand)
                     writer.Flush()
                 | Some key ->
-                    writer.WriteLine("key: " + key.ToString())
+                    writer.WriteLine(keyCommand + key.ToString())
                     writer.Flush()
-            | ParseRegex "^(remove:)(\s+)(\d+)$" (key :: _) ->
+            | ParseRegEx removeRegEx (key :: _) ->
                 cache.remove (Int32.Parse(key))
-            | ParseRegex "^(search:)(\s+)(\d+)$" (key :: _) ->
+            | ParseRegEx searchRegEx (key :: _) ->
                 let request = async {return! cache.search (Int32.Parse(key))}
                 match Async.RunSynchronously(request) with
                 | None ->
-                    writer.WriteLine("error: ")
+                    writer.WriteLine(errorCommand)
                     writer.Flush()
                 | Some value ->
-                    writer.WriteLine("value: " + ASCII.GetString(List.toArray value))
+                    writer.WriteLine(valueCommand + ASCII.GetString(List.toArray value))
                     writer.Flush()
             | _ ->
                 let log = [("Command \"" + command + "\" not supported.", Warning)]
+                writer.WriteLine(errorCommand + fst (List.head log))
+                writer.Flush()
                 logPolicy.log source log
             reader.Close()
             writer.Close()
@@ -75,29 +96,40 @@ let private cacheService = async {
         Async.Start(loop socket)}
 Async.Start(cacheService, cacheServiceToken.Token)
 
+let sourceConsole = ConfigurationManager.AppSettings.Item("Console-Log")
+
 let mutable running = true
 while running do
-    let source = ConfigurationManager.AppSettings.Item("Console-Log")
+    Console.Write("# ")
     let command = Console.ReadLine()
     match command with
-    | ParseRegex "^(memory:)(\s+)(high)$" _ ->
+    | ParseRegEx "^(memory:)(\s+)(high)$" _ ->
         cache.high
-    | ParseRegex "^(memory:)(\s+)(low)(\s+)(\d+)$" (size :: _) ->
+    | ParseRegEx "^(memory:)(\s+)(low)(\s+)(\d+)$" (size :: _) ->
         cache.low (Int32.Parse(size))
-    | ParseRegex "^(log:)(\s+)(information|warning|error)" (level :: _) ->
+    | ParseRegEx "^(log:)(\s+)(information|warning|error)" (level :: _) ->
         match level with
         | "information" -> cache.log Information
         | "warning" -> cache.log Warning
         | "error" -> cache.log Error
         | _ -> ()
-    | ParseRegex "^(protocol:)(\s+)(.+)$" (id :: _) ->
-        ()
-    | ParseRegex "^(config)$" _ ->
+    | ParseRegEx "^(protocol:)(\s+)(.+)$" (id :: _) ->
+        match readProtocol id with
+        | Protocol(newStoreRegEx, newRemoveRegEx, newSearchRegEx, newKeyCommand, newValueCommand, newErrorCommand) ->
+            storeRegEx <- newStoreRegEx
+            removeRegEx <- newRemoveRegEx
+            searchRegEx <- newSearchRegEx
+            keyCommand <- newKeyCommand
+            valueCommand <- newValueCommand
+            errorCommand <- newErrorCommand
+        | ProtocolError(message) ->
+            logPolicy.log sourceConsole [(message, Error)]
+    | ParseRegEx "^(config)$" _ ->
         for config in cache.config do
             Console.WriteLine(config)
-    | ParseRegex "^(quit)$" _ ->
+    | ParseRegEx "^(quit)$" _ ->
         cacheServiceToken.Cancel()
         running <- false
     | _ ->
         let log = [("Command \"" + command + "\" not found.", Warning)]
-        logPolicy.log source log
+        logPolicy.log sourceConsole log
