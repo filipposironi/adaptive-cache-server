@@ -16,6 +16,7 @@ module Helpers
 
 open System
 open System.Configuration
+open System.Diagnostics
 open System.Text.RegularExpressions
 open System.Xml
 open System.Xml.Linq
@@ -48,3 +49,8 @@ let readProtocol id =
         with
         :? NullReferenceException ->
             ProtocolError("Protocol \"" + id + "\" format not supported.")
+
+let getLastLogEntries source n =
+    use log = new EventLog("Application")
+    let entries = Array.filter (fun (e: EventLogEntry) -> e.Source = source) (Array.rev [|for e in log.Entries -> e|])
+    Array.sub entries 0 (min n (entries.Length - 1))
