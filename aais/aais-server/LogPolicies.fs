@@ -71,7 +71,8 @@ type ErrorLogPolicy() =
         member this.log source messages =
             for (message, level) in messages do
                 match level with
-                | Error -> writeLogEntry source message level
+                | Error ->
+                    writeLogEntry source message level
                 | _ -> ()
 
 type FactoryLogPolicy() =

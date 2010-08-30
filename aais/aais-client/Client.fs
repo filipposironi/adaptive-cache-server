@@ -24,43 +24,82 @@ open Helpers
 let private address = ConfigurationManager.AppSettings.Item("IP-Address")
 let private port = Int32.Parse(ConfigurationManager.AppSettings.Item("TCP-Port"))
 
+let mutable storeRegEx = "^(store:)(\s+)(.+)$"
+let mutable storeCommand = "store: "
+let mutable removeRegEx = "^(remove:)(\s+)(\d+)$"
+let mutable removeCommand = "remove: "
+let mutable searchRegEx = "^(search:)(\s+)(\d+)$"
+let mutable searchCommand = "search: "
+let mutable keyRegEx = "^(key:)(\s+)(\d+)$"
+let mutable valueRegEx = "^(value:)(\s+)(.+)$"
+let mutable errorRegEx = "^(error:)(\s+)(.+)$"
+
+match readProtocol (ConfigurationManager.AppSettings.Item("Default-Protocol")) with
+| Protocol(newStoreRegEx, newStoreCommand, newRemoveRegEx, newRemoveCommand, newSearchRegEx, newSearchCommand, newKeyRegEx, newValueRegEx, newErrorRegEx) ->
+    storeRegEx <- newStoreRegEx
+    storeCommand <- newStoreCommand
+    removeRegEx <- newRemoveRegEx
+    removeCommand <- newRemoveCommand
+    searchRegEx <- newSearchRegEx
+    searchCommand <- newSearchCommand
+    keyRegEx <- newKeyRegEx
+    valueRegEx <- newValueRegEx
+    errorRegEx <- newErrorRegEx
+| ProtocolError(error) ->
+    Console.WriteLine(error)
+
 let mutable running = true
 while running do
+    Console.Write("$ ")
     let command = Console.ReadLine()
     match command with
-    | ParseRegex "^(store:)(\s+)(.+)$" (value :: _) ->
+    | ParseRegEx storeRegEx (value :: _) ->
         use client = new TcpClient(address, port)
         use reader = new StreamReader(client.GetStream())
         use writer = new StreamWriter(client.GetStream())
-        writer.WriteLine("store: " + value)
+        writer.WriteLine(storeCommand + value)
         writer.Flush()
         match reader.ReadLine() with
-        | ParseRegex "^(key:)(\s+)(\d+)$" (key :: _) ->
+        | ParseRegEx keyRegEx (key :: _) ->
             Console.WriteLine("key: " + key)
-        | ParseRegex "^(error:)(\s+)(.+)" (error :: _) ->
-            Console.WriteLine(error)
-        | _ -> ()
-    | ParseRegex "^(remove:)(\s+)(\d+)$" (key :: _) ->
+        | ParseRegEx errorRegEx (message :: _) ->
+            Console.WriteLine("error: " + message)
+        | message ->
+            Console.WriteLine("error: \"" + message + "\" not recognized.")
+    | ParseRegEx removeRegEx (key :: _) ->
         use client = new TcpClient(address, port)
         use reader = new StreamReader(client.GetStream())
         use writer = new StreamWriter(client.GetStream())
-        writer.WriteLine("remove: " + key)
+        writer.WriteLine(removeCommand + key)
         writer.Flush()
-    | ParseRegex "^(search:)(\s+)(\d+)$" (key :: _) ->
+    | ParseRegEx searchRegEx (key :: _) ->
         use client = new TcpClient(address, port)
         use reader = new StreamReader(client.GetStream())
         use writer = new StreamWriter(client.GetStream())
-        writer.WriteLine("search: " + key)
+        writer.WriteLine(searchCommand + key)
         writer.Flush()
         match reader.ReadLine() with
-        | ParseRegex "^(value:)(\s+)(.+)$" (value :: _) ->
+        | ParseRegEx valueRegEx (value :: _) ->
             Console.WriteLine("value: " + value)
-        | ParseRegex "^(error:)(\s+)(.+)$" (error :: _) ->
+        | ParseRegEx errorRegEx (message :: _) ->
+            Console.WriteLine(message)
+        | message ->
+            Console.WriteLine("error: \"" + message + "\" not recognized.")
+    | ParseRegEx "^(protocol:)(\s+)(.+)$" (id :: _) ->
+        match readProtocol id with
+        | Protocol(newStoreRegEx, newStoreCommand, newRemoveRegEx, newRemoveCommand, newSearchRegEx, newSearchCommand, newKeyRegEx, newValueRegEx, newErrorRegEx) ->
+            storeRegEx <- newStoreRegEx
+            storeCommand <- newStoreCommand
+            removeRegEx <- newRemoveRegEx
+            removeCommand <- newRemoveCommand
+            searchRegEx <- newSearchRegEx
+            searchCommand <- newSearchCommand
+            keyRegEx <- newKeyRegEx
+            valueRegEx <- newValueRegEx
+            errorRegEx <- newErrorRegEx
+        | ProtocolError(error) ->
             Console.WriteLine(error)
-        | _ -> ()
-    | ParseRegex "^(protocol:)(\s+)(.+)$" (id :: _) ->
-        ()
-    | ParseRegex "^(quit)$" _ ->
+    | ParseRegEx "^(quit)$" _ ->
         running <- false
     | _ ->
         Console.WriteLine("Command \"" + command + "\" not supported.")
