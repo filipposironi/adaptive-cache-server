@@ -99,7 +99,7 @@ type CacheService() =
                     return! loop cache keys volatileCacheSize memoryPolicy logger "error.dll"
                 | _ -> ()
             | Config(outbox) ->
-                let logDescription = Assembly.LoadFrom(currentLogDLL).GetType("Log").GetProperty("description").GetValue(null,null)
+                let logDescription = Assembly.LoadFrom(currentLogDLL).GetType("Log").GetProperty("description").GetValue(null, null)
                 outbox.Reply [memoryPolicy.ToString(); logDescription.ToString()]
                 return! loop cache keys volatileCacheSize memoryPolicy logger currentLogDLL}
         let logger source messages =
