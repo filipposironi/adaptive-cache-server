@@ -17,7 +17,7 @@
     <DebugType>full</DebugType>
     <Optimize>false</Optimize>
     <Tailcalls>false</Tailcalls>
-    <OutputPath>C:\Documents and Settings\filipposironi\My Documents\Projects\aais\aais-server\bin\Debug\</OutputPath>
+    <OutputPath>C:\Users\swanz\workspace\aais\aais\aais-server\bin\Debug\</OutputPath>
     <DefineConstants>DEBUG;TRACE</DefineConstants>
     <WarningLevel>3</WarningLevel>
     <DocumentationFile>bin\Debug\warning.XML</DocumentationFile>
