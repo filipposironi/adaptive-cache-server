@@ -30,6 +30,8 @@ open Helpers
 open MemoryPolicies
 open CacheService
 
+let mutable protocol = 0
+
 let mutable storeRegEx = "^(store:)(\s+)(.+)$"
 let mutable removeRegEx = "^(remove:)(\s+)(\d+)$"
 let mutable searchRegEx = "^(search:)(\s+)(\d+)$"
@@ -38,14 +40,12 @@ let mutable valueCommand = "value: "
 let mutable errorCommand = "error: "
 
 let private serverEventLog = ConfigurationManager.AppSettings.Item("Server-Log")
+let private cacheEventLog = ConfigurationManager.AppSettings.Item("Cache-Log")
 let private consoleEventLog = ConfigurationManager.AppSettings.Item("Console-Log")
 let private cacheEventLog = ConfigurationManager.AppSettings.Item("Cache-Log")
 
-let assembly = Assembly.LoadFrom(ConfigurationManager.AppSettings.Item("Server-Log-DLL"))
-let container = assembly.GetType("Log")
-let f = container.GetMethod("log")
-let log source messages =
-    f.Invoke(null, [|source; messages|]) |> ignore
+let private logger source messages =
+    Assembly.LoadFrom(ConfigurationManager.AppSettings.Item("Server-Log-DLL")).GetType("Log").GetMethod("log").Invoke(null, [|source; messages|]) |> ignore
 
 let private cache = new CacheService()
 let private cacheServiceToken = new CancellationTokenSource()
@@ -60,8 +60,10 @@ let private cacheService = async {
         keyCommand <- newKeyCommand
         valueCommand <- newValueCommand
         errorCommand <- newErrorCommand
+        protocol <- Int32.Parse(ConfigurationManager.AppSettings.Item("Default-Protocol"))
     | ProtocolError(message) ->
-        log serverEventLog [(message, EventLogEntryType.Error)]
+        let log = [(message, EventLogEntryType.Error)]
+        logger serverEventLog log
     let listener = new TcpListener(IPAddress.Parse(address), port)
     listener.Start(10)
     while not cacheServiceToken.IsCancellationRequested do
@@ -93,11 +95,10 @@ let private cacheService = async {
                     writer.WriteLine(valueCommand + ASCII.GetString(List.toArray value))
                     writer.Flush()
             | _ ->
-                writer.WriteLine(errorCommand + "Command \"" + command + "\" not supported.")
+                let log = [("Command \"" + command + "\" not supported.", EventLogEntryType.Warning)]
+                logger serverEventLog log
+                writer.WriteLine(errorCommand + fst (List.head log))
                 writer.Flush()
-                log serverEventLog [("Command \"" + command + "\" not supported.", EventLogEntryType.Warning)]
-            reader.Close()
-            writer.Close()
             socket.Close()}
         Async.Start(loop socket)}
 Async.Start(cacheService, cacheServiceToken.Token)
@@ -115,20 +116,24 @@ while running do
         cache.low (Int32.Parse(size))
     | ParseRegEx "^(log:)(\s+)(information|warning|error)" (level :: _) ->
         match level with
-        | "information" -> cache.log EventLogEntryType.Information
-        | "warning" -> cache.log EventLogEntryType.Warning
-        | "error" -> cache.log EventLogEntryType.Error
+        | "information" ->
+            cache.log EventLogEntryType.Information
+        | "warning" ->
+            cache.log EventLogEntryType.Warning
+        | "error" ->
+            cache.log EventLogEntryType.Error
         | _ -> ()
     | ParseRegEx "^(show:)(\s+)(console|server|cache)(\s+)(\d+)$" (n :: source :: _) ->
         match source with
         | "console" ->
             let entries = getLastLogEntries consoleEventLog (Int32.Parse(n))
-            for e in entries do
-                Console.WriteLine(e.Message)
+            Array.iter (fun (e: EventLogEntry) -> Console.WriteLine(e.Message)) entries
         | "server" ->
             let entries = getLastLogEntries serverEventLog (Int32.Parse(n))
-            for e in entries do
-                Console.WriteLine(e.Message)
+            Array.iter (fun (e: EventLogEntry) -> Console.WriteLine(e.Message)) entries
+        | "cache" ->
+            let entries = getLastLogEntries cacheEventLog (Int32.Parse(n))
+            Array.iter (fun (e: EventLogEntry) -> Console.WriteLine(e.Message)) entries
         | "cache" ->
             let entries = getLastLogEntries cacheEventLog (Int32.Parse(n))
             for e in entries do
@@ -143,11 +148,15 @@ while running do
             keyCommand <- newKeyCommand
             valueCommand <- newValueCommand
             errorCommand <- newErrorCommand
+            protocol <- Int32.Parse(id)
         | ProtocolError(message) ->
-            log consoleEventLog [(message, EventLogEntryType.Error)]
+            let log = [(message, EventLogEntryType.Error)]
+            logger consoleEventLog log
     | ParseRegEx "^(config)$" _ ->
-        for config in cache.config do
-            Console.WriteLine(config)
+        Console.WriteLine("Cache context:")
+        List.iter (fun (c: string) -> Console.WriteLine(c)) cache.config
+        Console.WriteLine("Server context:")
+        Console.WriteLine("Network context is \"Protocol " + protocol.ToString() + "\".")
     | ParseRegEx "^(help)$" _ ->
         Console.WriteLine("Awesome adaptive cache server, version 1.1")
         Console.WriteLine()
@@ -163,4 +172,5 @@ while running do
         cacheServiceToken.Cancel()
         running <- false
     | _ ->
-        log consoleEventLog [("Command \"" + command + "\" not found.", EventLogEntryType.Warning)]
+        let log = [("Command \"" + command + "\" not found.", EventLogEntryType.Warning)]
+        logger consoleEventLog log
