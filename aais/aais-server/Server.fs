@@ -42,7 +42,6 @@ let mutable errorCommand = "error: "
 let private serverEventLog = ConfigurationManager.AppSettings.Item("Server-Log")
 let private cacheEventLog = ConfigurationManager.AppSettings.Item("Cache-Log")
 let private consoleEventLog = ConfigurationManager.AppSettings.Item("Console-Log")
-let private cacheEventLog = ConfigurationManager.AppSettings.Item("Cache-Log")
 
 let private logger source messages =
     Assembly.LoadFrom(ConfigurationManager.AppSettings.Item("Server-Log-DLL")).GetType("Log").GetMethod("log").Invoke(null, [|source; messages|]) |> ignore
@@ -104,7 +103,7 @@ let private cacheService = async {
 Async.Start(cacheService, cacheServiceToken.Token)
 
 let mutable running = true
-Console.WriteLine("Awesome adaptive cache server, version 1.1")
+Console.WriteLine("Adaptive Cache Server 1.1")
 Console.WriteLine("Type 'help' to see the commands list")
 while running do
     Console.Write("# ")
@@ -134,10 +133,6 @@ while running do
         | "cache" ->
             let entries = getLastLogEntries cacheEventLog (Int32.Parse(n))
             Array.iter (fun (e: EventLogEntry) -> Console.WriteLine(e.Message)) entries
-        | "cache" ->
-            let entries = getLastLogEntries cacheEventLog (Int32.Parse(n))
-            for e in entries do
-                Console.WriteLine(e.Message)
         | _ -> ()
     | ParseRegEx "^(protocol:)(\s+)(.+)$" (id :: _) ->
         match readProtocol id with
@@ -157,20 +152,21 @@ while running do
         List.iter (fun (c: string) -> Console.WriteLine(c)) cache.config
         Console.WriteLine("Server context:")
         Console.WriteLine("Network context is \"Protocol " + protocol.ToString() + "\".")
-    | ParseRegEx "^(help)$" _ ->
-        Console.WriteLine("Awesome adaptive cache server, version 1.1")
-        Console.WriteLine()
-        Console.WriteLine(" memory: high | low <maxSize> \t\t set the memory context")
-        Console.WriteLine(" log: information | warning | error \t set the log level policy")
-        Console.WriteLine(" protocol: <N> \t\t\t\t set the communication protocol version")
-        Console.WriteLine(" show: console | server | cache <N> \t print the last N log entries")
-        Console.WriteLine(" help \t\t\t\t\t show this help message")
-        Console.WriteLine(" config \t\t\t\t print the current server configuration")
-        Console.WriteLine(" quit \t\t\t\t\t quit the application")
-        Console.WriteLine()
     | ParseRegEx "^(quit)$" _ ->
         cacheServiceToken.Cancel()
         running <- false
+    | ParseRegEx "^(help)$" _ ->
+        Console.WriteLine("Adaptive Cache Server 1.1\n")
+        Console.WriteLine("Copyright (c) 2010")
+        Console.WriteLine("Filippo Sironi <filippo.sironi@gmail.com>")
+        Console.WriteLine("Matteo Villa <villa.matteo@gmail.com>\n")
+        Console.WriteLine("memory: high | low <size>\t\tset the memory context and cache size")
+        Console.WriteLine("log: information | warning | error\tset the log level")
+        Console.WriteLine("protocol: <number>\t\t\tset the communication protocol")
+        Console.WriteLine("show: console | server | cache <number>\tprint the last <number> log messages")
+        Console.WriteLine("config\t\t\t\t\tprint execution context information")
+        Console.WriteLine("quit\t\t\t\t\tquit the application")
+        Console.WriteLine("help\t\t\t\t\tshow this help message")
     | _ ->
         let log = [("Command \"" + command + "\" not found.", EventLogEntryType.Warning)]
         logger consoleEventLog log
