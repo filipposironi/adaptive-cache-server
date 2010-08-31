@@ -35,7 +35,7 @@ type CacheService() =
     let source = ConfigurationManager.AppSettings.Item("Cache-Log")
     let timeout = 1000
     let messageService = MailboxProcessor.Start(fun inbox ->
-        let rec loop cache keys volatileCacheSize (memoryPolicy: MemoryPolicy) logger currentLogDLL = async {
+        let rec loop cache keys volatileCacheSize (memoryPolicy: MemoryPolicy) logger logPolicy = async {
             let! message = inbox.Receive()
             match message with
             | Store(value, outbox) ->
@@ -43,16 +43,16 @@ type CacheService() =
                 | [] ->
                     let log = [("Key not available.", EventLogEntryType.Warning)]
                     logger source log
-                    return! loop cache keys volatileCacheSize memoryPolicy logger currentLogDLL
+                    return! loop cache keys volatileCacheSize memoryPolicy logger logPolicy
                 | key :: keys ->
                     let (cache, volatileCacheSize, log) = (memoryPolicy.serialize >> memoryPolicy.store cache) (key, value, volatileCacheSize)
                     logger source log
                     outbox.Reply key
-                    return! loop cache keys volatileCacheSize memoryPolicy logger currentLogDLL
+                    return! loop cache keys volatileCacheSize memoryPolicy logger logPolicy
             | Remove(key) ->
                 let (cache, volatileCacheSize, log) = (memoryPolicy.deserialize >> memoryPolicy.remove volatileCacheSize) (key, cache)
                 logger source log
-                return! loop cache (key :: keys) volatileCacheSize memoryPolicy logger currentLogDLL
+                return! loop cache (key :: keys) volatileCacheSize memoryPolicy logger logPolicy
             | Search(key, outbox) ->
                 let request cache key (memoryPolicy: MemoryPolicy) logger (outbox: AsyncReplyChannel<byte list>) = async {
                     match memoryPolicy.search key cache with
@@ -62,21 +62,21 @@ type CacheService() =
                         logger source log
                         outbox.Reply value}
                 Async.Start(request cache key memoryPolicy logger outbox)
-                return! loop cache keys volatileCacheSize memoryPolicy logger currentLogDLL
+                return! loop cache keys volatileCacheSize memoryPolicy logger logPolicy
             | LowMemory(volatileCacheMaxSize) ->
                 let oldVolatileCacheMaxSize = memoryPolicy.size
                 let memoryPolicy = new LowMemoryPolicy(volatileCacheMaxSize)
                 let (cache, volatileCacheSize) = memoryPolicy.update cache volatileCacheSize oldVolatileCacheMaxSize
                 let log = [("Memory context changed to \"Low Availability\".", EventLogEntryType.Information); ("Memory bound set to \"" + volatileCacheMaxSize.ToString() + "\".", EventLogEntryType.Information)]
                 logger source log
-                return! loop cache keys volatileCacheSize memoryPolicy logger currentLogDLL
+                return! loop cache keys volatileCacheSize memoryPolicy logger logPolicy
             | HighMemory ->
                 let oldVolatileCacheMaxSize = memoryPolicy.size
                 let memoryPolicy = new HighMemoryPolicy()
                 let (cache, volatileCacheSize) = memoryPolicy.update cache volatileCacheSize oldVolatileCacheMaxSize
                 let log = [("Memory context changed to \"High Availability\".", EventLogEntryType.Information)]
                 logger source log
-                return! loop cache keys volatileCacheSize memoryPolicy logger currentLogDLL
+                return! loop cache keys volatileCacheSize memoryPolicy logger logPolicy
             | Log(level) ->
                 match level with
                 | EventLogEntryType.Information ->
@@ -99,9 +99,8 @@ type CacheService() =
                     return! loop cache keys volatileCacheSize memoryPolicy logger "error.dll"
                 | _ -> ()
             | Config(outbox) ->
-                let logDescription = Assembly.LoadFrom(currentLogDLL).GetType("Log").GetProperty("description").GetValue(null, null)
-                outbox.Reply [memoryPolicy.ToString(); logDescription.ToString()]
-                return! loop cache keys volatileCacheSize memoryPolicy logger currentLogDLL}
+                outbox.Reply [memoryPolicy.ToString(); Assembly.LoadFrom(logPolicy).GetType("Log").GetProperty("description").GetValue(null, null).ToString()]
+                return! loop cache keys volatileCacheSize memoryPolicy logger logPolicy}
         let logger source messages =
             Assembly.LoadFrom("warning.dll").GetType("Log").GetMethod("log").Invoke(null, [|source; messages|]) |> ignore
         loop (new Map<int, bool * int * byte list>([])) [for i in 0 .. (Convert.ToInt32 UInt16.MaxValue) -> i] 0 (FactoryMemoryPolicy.Create()) logger "warning.dll")
