@@ -52,5 +52,7 @@ let readProtocol id =
 
 let getLastLogEntries source n =
     use log = new EventLog("Application")
+    let allEntries = log.Entries
     let entries = Array.filter (fun (e: EventLogEntry) -> e.Source = source) (Array.rev [|for e in log.Entries -> e|])
-    Array.sub entries 0 (min n (entries.Length - 1))
+    Array.sub entries 0 (min n entries.Length)
+   

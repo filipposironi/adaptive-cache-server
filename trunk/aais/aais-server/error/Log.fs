@@ -23,7 +23,7 @@ let writeLogEntry source message level =
         EventLog.CreateEventSource(source, name)
     EventLog.WriteEntry(source, message, level)
 
-let description = "Log context is \"Warning Log\""
+let description = "Log context is \"Error Log\""
     
 let log source messages =
     List.iter

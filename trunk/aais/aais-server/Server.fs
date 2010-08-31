@@ -39,6 +39,7 @@ let mutable errorCommand = "error: "
 
 let private serverEventLog = ConfigurationManager.AppSettings.Item("Server-Log")
 let private consoleEventLog = ConfigurationManager.AppSettings.Item("Console-Log")
+let private cacheEventLog = ConfigurationManager.AppSettings.Item("Cache-Log")
 
 let assembly = Assembly.LoadFrom(ConfigurationManager.AppSettings.Item("Server-Log-DLL"))
 let container = assembly.GetType("Log")
@@ -102,6 +103,8 @@ let private cacheService = async {
 Async.Start(cacheService, cacheServiceToken.Token)
 
 let mutable running = true
+Console.WriteLine("Awesome adaptive cache server, version 1.1")
+Console.WriteLine("Type 'help' to see the commands list")
 while running do
     Console.Write("# ")
     let command = Console.ReadLine()
@@ -116,7 +119,7 @@ while running do
         | "warning" -> cache.log EventLogEntryType.Warning
         | "error" -> cache.log EventLogEntryType.Error
         | _ -> ()
-    | ParseRegEx "^(show:)(\s+)(console|server)(\s+)(\d+)$" (n :: source :: _) ->
+    | ParseRegEx "^(show:)(\s+)(console|server|cache)(\s+)(\d+)$" (n :: source :: _) ->
         match source with
         | "console" ->
             let entries = getLastLogEntries consoleEventLog (Int32.Parse(n))
@@ -124,6 +127,10 @@ while running do
                 Console.WriteLine(e.Message)
         | "server" ->
             let entries = getLastLogEntries serverEventLog (Int32.Parse(n))
+            for e in entries do
+                Console.WriteLine(e.Message)
+        | "cache" ->
+            let entries = getLastLogEntries cacheEventLog (Int32.Parse(n))
             for e in entries do
                 Console.WriteLine(e.Message)
         | _ -> ()
@@ -141,6 +148,17 @@ while running do
     | ParseRegEx "^(config)$" _ ->
         for config in cache.config do
             Console.WriteLine(config)
+    | ParseRegEx "^(help)$" _ ->
+        Console.WriteLine("Awesome adaptive cache server, version 1.1")
+        Console.WriteLine()
+        Console.WriteLine(" memory: high | low <maxSize> \t\t set the memory context")
+        Console.WriteLine(" log: information | warning | error \t set the log level policy")
+        Console.WriteLine(" protocol: <N> \t\t\t\t set the communication protocol version")
+        Console.WriteLine(" show: console | server | cache <N> \t print the last N log entries")
+        Console.WriteLine(" help \t\t\t\t\t show this help message")
+        Console.WriteLine(" config \t\t\t\t print the current server configuration")
+        Console.WriteLine(" quit \t\t\t\t\t quit the application")
+        Console.WriteLine()
     | ParseRegEx "^(quit)$" _ ->
         cacheServiceToken.Cancel()
         running <- false
