@@ -85,11 +85,29 @@ Many different software systems support many different levels of logging. Usuall
 \label{section:work:network-context}
 The last adaptation capability implemented is that regarding the network context. The cache server supports the ability to change the protocol used for the client/server communication while the system is running without any interruption.
 
+\subsection{Implementation}
+\label{section:work:implementation}
+The cache server is logically partitioned in five different modules as shown in Figure \ref{figure:modules}.
+
 \begin{figure}
 \begin{center}
 \includegraphics[width=0.75\textwidth]{figures/Modules.pdf}
 \caption{Modules}
 \label{figure:modules}
+\end{center}
+\end{figure}
+
+The \textit{client} module contains all the code related to the client used to interact with the cache server, the \textit{cache server} module contains the code related to the cache server, while the three modules \textit{error}, \textit{warning}, and \textit{information} contain the code used to handled the three logging levels. Further explanations for this partitioning will be given later.
+
+The client is a pretty simple interactive application that is programmed making an extensive use of the functional programming paradigm. The mutable state is concentrated in a set of mutable values which are used to handle to allow the hot-swap of a network protocol, and hence the change of the network context, in favor of another one. The configuration is read, once the application is started, from an XML configuration files.
+
+The cache server is made up of different components organized in different sub-modules as Figure \ref{figure:server-modules} shows.
+
+\begin{figure}
+\begin{center}
+\includegraphics[width=0.7\textwidth]{figures/Server-Modules.pdf}
+\caption{Modules}
+\label{figure:server-modules}
 \end{center}
 \end{figure}
 
