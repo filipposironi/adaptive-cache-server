@@ -114,7 +114,7 @@ The cache server is composed of different elements organized in different sub-mo
 \end{center}
 \end{figure}
 
-The \textit{server} module contains an interactive application whose execution cycle is splitted in two asynchronous tasks (threads). One of the task maintains an instance to the cache service (implemented by the \textit{cache service} module) while the other handles network communications and accesses the cache service running within the other task. Finally, the \textit{memory policy} module contains the code that handles the different memory contexts. Just like the client, the cache server loads its initial configuration from an XML file.
+The \textit{server} module contains an interactive application whose execution cycle is split in two asynchronous tasks (threads). One of the task maintains an instance to the cache service (implemented by the \textit{cache service} module) while the other handles network communications and accesses the cache service running within the other task. Finally, the \textit{memory policy} module contains the code that handles the different memory contexts. Just like the client, the cache server loads its initial configuration from an XML file.
 
 \section{Involved abstractions and constructs}
 \label{section:functionalities}
