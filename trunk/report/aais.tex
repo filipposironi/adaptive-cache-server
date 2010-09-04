@@ -46,17 +46,20 @@
 
 \section{Introduction}
 \label{section:introduction}
-Aim of this project is to explore the support that a given programming language and, if available, the underlying framework can provide in order to build an aware and adaptive software system.While adaptation can be achieved through primitive constructs (such as an if chains or case chains that select the desired behavior) the goal is to rely on powerful abstraction and higher level constructs among the ones offered by the platform.
+Aim of this project is to explore the support that a given programming language and, if available, the underlying framework can provide in order to build an aware and adaptive software system.
+While adaptation can be achieved through primitive constructs (such as an \textit{if} or \textit{case} chain that selects the desired behavior), our goal is to rely on a more powerful level of abstraction and higher level constructs among the ones offered by the platform.
 
 The programming language adopted for this project is F\#, a multi-paradigm programming language leveraging the .NET framework.
 
 \section{The F\# programming language and the .NET framework}
 \label{section:platform}
-F\# began in 2002 when Don Syme and others at Microsoft Research decided to propose the adoption of a functional programming language based on \textit{ML} for the .NET framework. Its first major pre-release was in 2005.
+The F\# project began in 2002 when Don Syme and others at Microsoft Research decided to propose the adoption of a functional programming language based on \textit{ML} for the .NET framework. Its first major pre-release was in 2005.
 
-F\# is a statically strong typed programming language supporting many different paradigms. It shares a core language with the OCaml (Objective Caml) programming language, and in some ways it can be considered an ``OCaml for .NET''. F\# would not exist without OCaml, which in turn comes from the ML family of programming languages, which dates back to 1974. F\# also draws from the Haskell programming languages and other functional programming languages such as the Erlang programming language.
-Despite being a functional programming language and being similar to OCaml and Haskell, we can say that F\# is a whole other kind of programming language. In fact, F\# can leverage the full power of .NET that allows the natural adoption of both the imperative and the object-oriented (OO) paradigms; moreover, F\# allows the exploitation of advanced constructs such as sequence expressions and workflows which are inspired to Haskell's monads. In addition to this, F\# also provides a missing link between compiled and the so called dynamic programming languages, combining the idioms and programming styles typical of dynamic programming languages with the performance and robustness of a compiled programming language.
-Functional programming is booming at a point some common functional programming language constructs have been integrated into mainstream programming languages such as C\#, Python, Ruby, and more recently in Java.
+F\# is a statically strong typed programming language that supports many different paradigms. It shares a core language with the OCaml (Objective Caml) programming language, and in some ways it can be considered an ``OCaml for .NET''. F\# would not exist without OCaml, which in turn comes from the ML family of programming languages, which dates back to 1974. F\# also draws from the Haskell programming languages and other functional programming languages such as Erlang.
+
+Despite being a functional programming language and being similar to OCaml and Haskell, we can say that F\# is a whole other kind of programming language. In fact, F\# can leverage the full power of .NET that allows the natural adoption of both the imperative and the object-oriented (OO) paradigms; moreover, F\# allows the exploitation of advanced constructs such as sequence expressions and workflows which are inspired by Haskell's monads. In addition to this, F\# also provides a missing link between compiled and the so called dynamic programming languages, combining the idioms and programming styles typical of dynamic programming languages with the performance and robustness of a compiled programming language.
+
+Functional programming is booming at a point that some common functional programming constructs have been integrated into mainstream programming languages such as C\#, Python, Ruby, and more recently, Java.
 
 \section{An adaptive cache server written in F\#}
 \label{section:work}
@@ -68,18 +71,18 @@ The cache server implemented for this project leverages awareness and adaption i
 \label{section:work:memory-context}
 The implemented cache server supports theoretically an infinite number of memory contexts which are partition in two major contexts. The first is called \textit{high memory context} while the second is \textit{low memory context}.
 
-When the high memory context is active the cache server is allowed to use an infinite amount of virtual memory, the sole limitation is given by the total amount of virtual memory the machine can address. This means every cache line is ``volatile'' in the sense that it is only resident within the volatile memory.
+When the \textit{high memory context} is active the cache server is allowed to use an infinite amount of virtual memory and the sole memory limitation is given by the total amount of virtual memory the machine can address. This means every cache line is ``volatile'' in the sense that it is only resident within the volatile memory.
 
-On the other hand, when the low memory context is active there can be many different situations. The low memory context is coupled with a parameter indicating the upper bound of volatile memory the cache server can use to store cache lines. One the bound is reached the cache server starts using the non-volatile memory.
+On the other hand, when the \textit{low memory context} is active there can be many different situations. The low memory context is coupled with a parameter indicating the upper bound of volatile memory the cache server can use to store cache lines. Once the bound is reached the cache server starts using the non-volatile memory.
 
 \subsection{Logging context}
 \label{section:work:logging-context}
-Many different software systems support many different levels of logging. Usually the logging level is selected when the software system is started and cannot be changed while it is running. A peculiarity of aware and adaptive software systems is the capability of changing the way they operate without any down-time; the cache server implemented for this project provide the ability to change the amount of messages to log while it is running and supports three different logging levels:
-\begin{itemize}
-\item \textit{error}, shows only error messages;
-\item \textit{warning}, shows warning and error messages;
-\item \textit{information}, verbose context, shows information, warning, and error messages.
-\end{itemize}
+Many different software systems support many different levels of logging. Usually the logging level is selected when the software system is started and cannot be changed at run-time. A peculiarity of aware and adaptive software systems is the capability of changing the way they operate without any down-time: therefore, the cache server here implemented has indeed the ability to change the amount of messages to be logged during its execution. It supports three different logging levels:
+\begin{description}
+\item [\textit{Error}:] only error messages are logged;
+\item [\textit{Warning}:] warning and error messages are logged;
+\item [\textit{Information}:] (verbose context) logs information, warning, and error messages.
+\end{description}
 
 \subsection{Network context}
 \label{section:work:network-context}
@@ -87,7 +90,7 @@ The last adaptation capability implemented is that regarding the network context
 
 \subsection{Implementation}
 \label{section:work:implementation}
-The cache server is logically partitioned in five different modules as shown in Figure \ref{figure:modules}.
+The cache server is logically partitioned in five different modules, as shown in Figure \ref{figure:modules}.
 
 \begin{figure}
 \begin{center}
@@ -97,11 +100,11 @@ The cache server is logically partitioned in five different modules as shown in 
 \end{center}
 \end{figure}
 
-The \textit{client} module contains all the code related to the client used to interact with the cache server, the \textit{cache server} module contains the code related to the cache server, while the three modules \textit{error}, \textit{warning}, and \textit{information} contain the code used to handled the three logging levels. Further explanations for this partitioning will be given later.
+The \textit{client} module contains all the code related to the client used to interact with the cache server; the \textit{cache server} module contains the code related to the server itself; while the three modules \textit{error}, \textit{warning}, and \textit{information} contain the code used to handled the three logging levels. Further explanations about this partitioning will be given later.
 
-The client is a pretty simple interactive application that is programmed making an extensive use of the functional programming paradigm. The mutable state is concentrated in a set of mutable values which are used to handle to allow the hot-swap of a network protocol, and hence the change of the network context, in favor of another one. The configuration is read, once the application is started, from an XML configuration files.
+The client is a simple interactive application that has been developed making an extensive use of the functional programming paradigm. The mutable state is concentrated in a set of mutable values which are used to handle the hot-swap of a network protocol, hence the change of the network context, in favor of another one. The application' s configuration is read, once the application is started, from an XML configuration file.
 
-The cache server is made up of different components organized in different sub-modules as Figure \ref{figure:server-modules} shows.
+The cache server is composed of different elements organized in different sub-modules, as Figure \ref{figure:server-modules} shows.
 
 \begin{figure}
 \begin{center}
@@ -111,7 +114,7 @@ The cache server is made up of different components organized in different sub-m
 \end{center}
 \end{figure}
 
-The \textit{server} module contains an interactive application whose execution cycle is split in two asynchronous tasks (threads). One of the task maintains an instance to the cache service while the other handles network communications and accesses the cache service running within the other task. The cache service is contained in the \textit{cache service} module. Finally, the \textit{memory policy} module contains the code that handles the different memory contexts. Just like the client, the cache server loads its initial configuration from an XML configuration file.
+The \textit{server} module contains an interactive application whose execution cycle is splitted in two asynchronous tasks (threads). One of the task maintains an instance to the cache service (implemented by the \textit{cache service} module) while the other handles network communications and accesses the cache service running within the other task. Finally, the \textit{memory policy} module contains the code that handles the different memory contexts. Just like the client, the cache server loads its initial configuration from an XML file.
 
 \section{Involved abstractions and constructs}
 \label{section:functionalities}
