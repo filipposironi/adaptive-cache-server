@@ -6,6 +6,8 @@
 \usepackage{graphicx}
 \usepackage{indentfirst}
 \usepackage[applemac]{inputenc}
+\usepackage{listings}
+\lstset{basicstyle=\ttfamily,captionpos=b,abovecaptionskip=1.5em}
 \usepackage{url}
 
 \begin{document}
@@ -36,7 +38,7 @@
 \end{tabular}
 \end{center}
 
-\vskip 2cm
+\vskip 5.5cm
 
 \begin{center}
 {\large 2009-2010}
@@ -47,13 +49,13 @@
 \section{Introduction}
 \label{section:introduction}
 Aim of this project is to explore the support that a given programming language and, if available, the underlying framework can provide in order to build an aware and adaptive software system.
-While adaptation can be achieved through primitive constructs (such as an \textit{if} or \textit{case} chain that selects the desired behavior), our goal is to rely on a more powerful level of abstraction and higher level constructs among the ones offered by the platform.
+While adaptation can be achieved through primitive constructs (such as an \emph{if} or \emph{case} chain that selects the desired behavior), our goal is to rely on a more powerful level of abstraction and higher level constructs among the ones offered by the platform.
 
 The programming language adopted for this project is F\#, a multi-paradigm programming language leveraging the .NET framework.
 
 \section{The F\# programming language and the .NET framework}
 \label{section:platform}
-The F\# project began in 2002 when Don Syme and others at Microsoft Research decided to propose the adoption of a functional programming language based on \textit{ML} for the .NET framework. Its first major pre-release was in 2005.
+The F\# project began in 2002 when Don Syme and others at Microsoft Research decided to propose the adoption of a functional programming language based on \emph{ML} for the .NET framework. Its first major pre-release was in 2005.
 
 F\# is a statically strong typed programming language that supports many different paradigms. It shares a core language with the OCaml (Objective Caml) programming language, and in some ways it can be considered an ``OCaml for .NET''. F\# would not exist without OCaml, which in turn comes from the ML family of programming languages, which dates back to 1974. F\# also draws from the Haskell programming languages and other functional programming languages such as Erlang.
 
@@ -69,20 +71,20 @@ The cache server implemented for this project leverages awareness and adaption i
 
 \subsection{Memory context}
 \label{section:work:memory-context}
-The implemented cache server supports theoretically an infinite number of memory contexts which are partition in two major contexts. The first is called \textit{high memory context} while the second is \textit{low memory context}.
+The implemented cache server supports theoretically an infinite number of memory contexts which are partition in two major contexts. The first is called \emph{high memory context} while the second is \emph{low memory context}.
 
-When the \textit{high memory context} is active the cache server is allowed to use an infinite amount of virtual memory and the sole memory limitation is given by the total amount of virtual memory the machine can address. This means every cache line is ``volatile'' in the sense that it is only resident within the volatile memory.
+When the \emph{high memory context} is active the cache server is allowed to use an infinite amount of virtual memory and the sole memory limitation is given by the total amount of virtual memory the machine can address. This means every cache line is ``volatile'' in the sense that it is only resident within the volatile memory.
 
-On the other hand, when the \textit{low memory context} is active there can be many different situations. The low memory context is coupled with a parameter indicating the upper bound of volatile memory the cache server can use to store cache lines. Once the bound is reached the cache server starts using the non-volatile memory.
+On the other hand, when the \emph{low memory context} is active there can be many different situations. The low memory context is coupled with a parameter indicating the upper bound of volatile memory the cache server can use to store cache lines. Once the bound is reached the cache server starts using the non-volatile memory.
 
 \subsection{Logging context}
 \label{section:work:logging-context}
 Many different software systems support many different levels of logging. Usually the logging level is selected when the software system is started and cannot be changed at run-time. A peculiarity of aware and adaptive software systems is the capability of changing the way they operate without any down-time: therefore, the cache server here implemented has indeed the ability to change the amount of messages to be logged during its execution. It supports three different logging levels:
-\begin{description}
-\item [\textit{Error}:] only error messages are logged;
-\item [\textit{Warning}:] warning and error messages are logged;
-\item [\textit{Information}:] (verbose context) logs information, warning, and error messages.
-\end{description}
+\begin{itemize}
+\item \emph{error}, only error messages are logged;
+\item \emph{warning}, warning and error messages are logged;
+\item \emph{information}, (verbose context) logs information, warning, and error messages.
+\end{itemize}
 
 \subsection{Network context}
 \label{section:work:network-context}
@@ -100,26 +102,100 @@ The cache server is logically partitioned in five different modules, as shown in
 \end{center}
 \end{figure}
 
-The \textit{client} module contains all the code related to the client used to interact with the cache server; the \textit{cache server} module contains the code related to the server itself; while the three modules \textit{error}, \textit{warning}, and \textit{information} contain the code used to handled the three logging levels. Further explanations about this partitioning will be given later.
+The \emph{client} module contains all the code related to the client used to interact with the cache server; the \emph{cache server} module contains the code related to the server itself; while the three modules \emph{error}, \emph{warning}, and \emph{information} contain the code used to handled the three logging levels. Further explanations about this partitioning will be given later.
 
-The client is a simple interactive application that has been developed making an extensive use of the functional programming paradigm. Its mutable state is concentrated in a set of mutable values which are used to handle the hot-swap of a network protocol, hence the change of the network context, in favor of another one. The application' s configuration is read, once the application is started, from an XML configuration file.
+The client is a simple interactive application that has been developed making an extensive use of the functional programming paradigm. Its mutable state is concentrated in a set of mutable values which are used to handle the hot-swap of a network protocol, hence the change of the network context, in favor of another one. The application' s configuration is read, once the application is started, from an XML configuration file.  An example XML configuration file is shown in Listing \ref{listing:client-configuration}.
 
-The cache server is composed of different elements organized in different sub-modules, as Figure \ref{figure:server-modules} shows.
+\begin{lstlisting}[language=XML,caption=Client XML configuration file,label=listing:client-configuration,float]
+<configuration>
+  <appSettings>
+    <add key="IP-Address" value="127.0.0.1"/>
+    <add key="TCP-Port" value="1234"/>
+    <add key="Protocols" value="protocols.xml"/>
+    <add key="Default-Protocol" value="0"/>
+  </appSettings>
+</configuration>
+\end{lstlisting}
+
+The cache server is made up of different components organized in different sub-modules as Figure \ref{figure:cache-server-modules} shows.
 
 \begin{figure}
 \begin{center}
-\includegraphics[width=0.65\textwidth]{figures/Server-Modules.pdf}
-\caption{Modules}
-\label{figure:server-modules}
+\includegraphics[width=0.65\textwidth]{figures/Cache-Server-Modules.pdf}
+\caption{Cache server modules}
+\label{figure:cache-server-modules}
 \end{center}
 \end{figure}
 
-The \textit{server} module contains an interactive application whose execution cycle is split in two asynchronous tasks (threads). One of the task maintains an instance to the cache service (implemented by the \textit{cache service} module) while the other handles network communications and accesses the cache service running within the other task. Finally, the \textit{memory policy} module contains the code that handles the different memory contexts. Just like the client, the cache server loads its initial configuration from an XML file.
+The \emph{server} module contains an interactive application whose execution cycle is split in two asynchronous tasks (threads). One of the task maintains an instance to the cache service while the other handles network communications and accesses the cache service running within the other task. The cache service is contained in the \emph{cache service} module. Finally, the \emph{memory policy} module contains the code that handles the different memory contexts. Just like the client, the cache server loads its initial configuration from an XML configuration file. An example XML configuration file is shown in Listing \ref{listing:cache-server-configuration}.
+
+\begin{lstlisting}[language=XML,caption=Cache server XML configuration file,label=listing:cache-server-configuration,float]
+<configuration>
+  <appSettings>
+    <add key="Server-Log-DLL"
+         value="warning.dll"/>
+    <add key="IP-Address"
+         value="127.0.0.1"/>
+    <add key="TCP-Port"
+         value="1234"/>
+    <add key="Protocols"
+         value="protocols.xml"/>
+    <add key="Default-Protocol"
+         value="0"/>
+    <add key="Console-Log"
+         value="AdaptiveServerAdminConsole"/>
+    <add key="Cache-Log"
+         value="AdaptiveCacheService"/>
+    <add key="Server-Log"
+         value="AdaptiveServer"/>
+  </appSettings>
+</configuration>
+\end{lstlisting}
 
 \section{Involved abstractions and constructs}
 \label{section:functionalities}
+To achieve some level of adaptability, the implemented cache server tries to exploit different general purpose constructs provided by the language and the underlying platform, since no specific framework that allows the handling of contexts related tasks is currently available for F\# or .NET.
 
-To achieve some level of adaptability, the implemented cache server tries to exploit different general-purpose constructs provided by the language, since no specific framework that allows to handle runtime-context related tasks is at this time available for F\# or .NET.   
+Having identified three different areas in which awareness and adaptation are useful and hence involved, the next step is to propose adopt a suitable adaptation method. Being a flexible programming language supporting many different programming paradigms and powerful thanks to the underlying framework, .NET, F\# provides countless method to implement adaptation in a software system.
+
+In this project three methods to provide adaptation as been exploited, namely they are:
+\begin{itemize}
+\item \emph{generic programming}, this computer programming style dates back to 1980s, however, it is a widely adopted techniques in both mainstream programming languages (\emph{i.e.,} C++, C\#, Java, and so on\ldots) and functional programming languages such as ``MLs'', Haskell, and Scala. F\# support of generics is built on top of .NET support;
+\item \emph{reflective programming}, which is a computer meta-programming technique allowing software components to change their inner operations and structures modifying their behavior. Once again, F\# support of reflection depends on .NET;
+\item \emph{pattern matching}, that is functionality common to many functional programming languages, F\# boosts its potential to an extent that allows adaptation.
+\end{itemize}
+
+\subsection{Generic programming}
+\label{section:functionalities:generics}
+Generic programming and \emph{generics} have been exploited in order to allow the cache server to adapt its behavior upon changes in the memory context. More precisely, two different memory policies to manage the high memory context and the low memory context have been implemented in two different function objects, the first is called \texttt{HighMemoryPolicy} while the latter is called \texttt{LowMemoryPolicy}, both of them are implemented within the memory policy module and inherit their public interface from \texttt{MemoryPolicy} (which is an abstract data type).
+
+Whenever a memory context change occurs, the context controller sends a message to the cache service advising it to change the way it is operating. Take a more in depth look, a new memory policy is instantiated and it is used to substitute the active one. The instantiation of a new memory policy is demanded to a factory object which hides complexity to the software system developer. It is important to observe that this substitution is managed by the cache service in a completely transparent fashion since it imposes no lock on the software system since the main control loop of the cache service exploits two important functional programming functionalities: \emph{non-mutable values} and  \emph{recursion} (which is optimized away by the compiler through tail-recursion optimization).
+
+Figure \ref{figure:memory-policies} shows the abstract data types tree.
+
+\begin{figure}
+\begin{center}
+\includegraphics[width=0.85\textwidth]{figures/Memory-Policies.pdf}
+\caption{Memory policies}
+\label{figure:memory-policies}
+\end{center}
+\end{figure}
+
+\subsection{Reflective programming}
+\label{section:functionalities:reflection}
+Reflective programming has been used to implement adaptation capabilities regarding the logging context. As discussed in Section \ref{section:work:implementation}, in addition to the ``common'' client and cache server modules this project contains three additional modules and all of them are recognized as a log module.
+
+These three additional modules, information, warning, and error are built separately and encapsulated in three different \emph{dynamic-link libraries} (DLLs). These three DLLs export the same names, this characteristic is fundamental for implementing adaptation.
+
+The fact that these DLLs export the same names allow the cache server to hot-swap one in favor of another one and transparently load functions from the currently addressed library. The ability to dynamically load a function from a module enclosed within an external library and hence dynamically dispatch requests is a feature of the reflective sub-system built within .NET granting the ability to inspect a .NET assembly.
+
+In contrast with the approach adopted for the adaptation process to the memory context, which makes use of generic programming, generics, and abstract data types, the approach adopted in conjunction with reflection is ``purely'' functional in the sense it makes use of function only without declaring abstract data types.
+
+\subsection{Pattern matching}
+\label{section:functionalities:pattern-matching}
+
+\subsection{Miscellanea}
+\label{section:functionalities:miscellanea}
 
 \section{Conclusions}
 \label{section:conclusions}
