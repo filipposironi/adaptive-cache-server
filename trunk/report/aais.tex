@@ -102,7 +102,7 @@ The cache server is logically partitioned in five different modules, as shown in
 
 The \textit{client} module contains all the code related to the client used to interact with the cache server; the \textit{cache server} module contains the code related to the server itself; while the three modules \textit{error}, \textit{warning}, and \textit{information} contain the code used to handled the three logging levels. Further explanations about this partitioning will be given later.
 
-The client is a simple interactive application that has been developed making an extensive use of the functional programming paradigm. The mutable state is concentrated in a set of mutable values which are used to handle the hot-swap of a network protocol, hence the change of the network context, in favor of another one. The application' s configuration is read, once the application is started, from an XML configuration file.
+The client is a simple interactive application that has been developed making an extensive use of the functional programming paradigm. Its mutable state is concentrated in a set of mutable values which are used to handle the hot-swap of a network protocol, hence the change of the network context, in favor of another one. The application' s configuration is read, once the application is started, from an XML configuration file.
 
 The cache server is composed of different elements organized in different sub-modules, as Figure \ref{figure:server-modules} shows.
 
@@ -118,6 +118,8 @@ The \textit{server} module contains an interactive application whose execution c
 
 \section{Involved abstractions and constructs}
 \label{section:functionalities}
+
+To achieve some level of adaptability, the implemented cache server tries to exploit different general-purpose constructs provided by the language, since no specific framework that allows to handle runtime-context related tasks is at this time available for F\# or .NET.   
 
 \section{Conclusions}
 \label{section:conclusions}
