@@ -55,4 +55,3 @@ let getLastLogEntries source n =
     let allEntries = log.Entries
     let entries = Array.filter (fun (e: EventLogEntry) -> e.Source = source) (Array.rev [|for e in log.Entries -> e|])
     Array.sub entries 0 (min n entries.Length)
-   
