@@ -172,8 +172,8 @@ Since the protocol at the very base of both network and local communications is 
 In addition to the adaptive capabilities introduced so far it is import to list other F\# characteristics that are used extensively throughout this project. The most important are:
 \begin{itemize}
 \item \emph{asynchronous (async) workflows}, which enable parallel execution, asynchronous execution, and reactive execution Ð and combinations thereof. Async workflows are managed by .NET using a \texttt{ThreadPool};
-\item \emph{actors model}, a message passing based programming techniques F\# borrows from Erlang. It is implemented by means of \texttt{MailboxProcessor} which internally exploits async workflows and recursion. This programming model is used to handle communication between server and the cache service and between the console and the cache service;
-\item \emph{discriminated unions}, used to define heterogeneous abstract data types (\emph{e.g.,} internal format of messages send through message passing);
+\item \emph{actors model}, a message passing based programming techniques F\# borrows from Erlang. It is implemented by means of \texttt{MailboxProcessor} which internally exploits async workflows and recursion. This programming model is used to handle communication between the server and the cache service and between the console and the cache service;
+\item \emph{discriminated unions}, used to define heterogeneous abstract data types (\emph{e.g.,} internal format of messages sent through message passing);
 \item \emph{function composition}, used to exploit similarities between different functionalities. For example, the \texttt{store(value)} functionality exposed by the cache service is implemented by the available memory policies in nearly identical ways. Each memory policy re-defines only the \texttt{serialize} function while the \texttt{store} function is left untouched and the whole functionality is obtained composing the polymorphic \texttt{serialize} function with the \texttt{store} function;
 \item \emph{Windows Event Viewer}, adopted as log viewer to reach a better integration with the operating system.
 \end{itemize}
