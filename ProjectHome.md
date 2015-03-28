@@ -1,0 +1,1 @@
+This project is meant to develop an adaptive cache server using the F# language and the .NET framework on the Windows platform
